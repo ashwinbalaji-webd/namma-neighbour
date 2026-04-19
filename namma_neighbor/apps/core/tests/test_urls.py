@@ -44,4 +44,4 @@ def test_health_check_endpoint_returns_json(client):
     """GET /health/ returns JSON response."""
     response = client.get('/health/')
     assert response.status_code == 200
-    assert response['Content-Type'] == 'application/json'
+    assert 'application/json' in response['Content-Type']

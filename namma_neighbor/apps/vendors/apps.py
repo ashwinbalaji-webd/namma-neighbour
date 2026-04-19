@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class vendorsConfig(AppConfig):
+class VendorsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.vendors'
