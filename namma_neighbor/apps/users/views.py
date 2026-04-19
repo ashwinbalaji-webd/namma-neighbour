@@ -1,29 +1,20 @@
 import hmac
 import hashlib
+import logging
 import secrets
 
 from django.conf import settings
-from django.utils.decorators import method_decorator
 from django.core.cache import cache
-from django_ratelimit.decorators import ratelimit
-from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
 
 from apps.users.models import PhoneOTP
 from apps.users.serializers import SendOTPSerializer
 from apps.users.tasks import send_otp_sms
 
-
-def _get_rate_limit_key(group, request):
-    try:
-        phone = request.data.get("phone", "")
-        return f"otp_send:{phone}"
-    except Exception:
-        return None
+logger = logging.getLogger(__name__)
 
 
 class SendOTPView(APIView):
@@ -56,7 +47,7 @@ class SendOTPView(APIView):
         PhoneOTP.objects.create(phone=phone, otp_hash=otp_hash)
         try:
             send_otp_sms.delay(phone, otp)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.error(f"Failed to dispatch OTP SMS task for {phone}: {exc}")
 
         return Response({"message": "OTP sent"}, status=status.HTTP_200_OK)

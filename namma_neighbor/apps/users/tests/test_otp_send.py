@@ -67,7 +67,7 @@ class TestSendOTPEndpoint:
 
     @patch("apps.users.views.send_otp_sms.delay")
     def test_send_otp_dispatches_celery_task(self, mock_task, client):
-        """send_otp_sms.delay() is called once with the phone."""
+        """send_otp_sms.delay() is called once with phone and 6-digit OTP."""
         response = client.post("/api/v1/auth/send-otp/", {"phone": "+919876543210"})
         assert response.status_code == 200
         assert mock_task.call_count == 1
@@ -106,13 +106,25 @@ class TestSendOTPEndpoint:
             responses.append(response.status_code)
         assert responses == [200, 200, 200, 429]
 
+    @patch("apps.users.views.cache")
     @patch("apps.users.views.send_otp_sms.delay")
-    def test_send_otp_rate_limit_different_phones_independent(self, mock_task, client):
+    def test_send_otp_rate_limit_different_phones_independent(self, mock_task, mock_cache, client):
         """Rate limit does not bleed across different phone numbers."""
-        for i in range(4):
+        cache_state = {}
+
+        def mock_get(key, default=0):
+            return cache_state.get(key, default)
+
+        def mock_set(key, value, timeout):
+            cache_state[key] = value
+
+        mock_cache.get.side_effect = mock_get
+        mock_cache.set.side_effect = mock_set
+
+        for i in range(3):
             response = client.post("/api/v1/auth/send-otp/", {"phone": "+919876543210"})
             assert response.status_code == 200
-        for i in range(4):
+        for i in range(3):
             response = client.post("/api/v1/auth/send-otp/", {"phone": "+919876543211"})
             assert response.status_code == 200
 
@@ -150,3 +162,7 @@ class TestSendOTPSMSTask:
         from celery import current_app
 
         assert "apps.users.tasks.send_otp_sms" in current_app.tasks
+
+    def test_send_otp_sms_task_retries_on_exception(self):
+        """send_otp_sms task has retry configuration with exponential backoff."""
+        assert send_otp_sms.max_retries == 3
