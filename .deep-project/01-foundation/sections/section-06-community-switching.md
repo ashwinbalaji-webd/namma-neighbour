@@ -229,3 +229,30 @@ The section is complete when all of the following hold:
 - Unauthenticated requests receive HTTP 401
 - Requests for a community the user has no `UserRole` in receive HTTP 403 (regardless of whether the community exists)
 - The endpoint is registered at `POST /api/v1/auth/switch-community/` and reachable
+
+---
+
+## Implementation Notes
+
+### What Was Built
+
+**Files Created:**
+- `apps/users/tests/test_switch_community.py` — 12 tests covering all acceptance criteria
+
+**Files Modified:**
+- `apps/users/views.py` — Added `SwitchCommunityView` with input validation, role check, DB update, JWT re-issuance
+- `apps/users/urls.py` — Registered `switch-community/` endpoint
+
+### Deviations from Plan
+
+**Input validation strengthened:** Plan specified "absent or not a positive integer → 400". Implementation validates `community_id is None or not isinstance(community_id, int) or community_id <= 0`. Added 3 extra tests for string, negative, and zero values.
+
+**All tests use `format="json"`:** Required so integer `community_id` values are sent as JSON integers (not multipart strings which bypass `isinstance(int)` check).
+
+**Response returns DB-confirmed value:** `community_id` in response returns `request.user.active_community_id` (DB integer) rather than echoing raw request input, avoiding type mismatch if clients send form-encoded strings.
+
+### Test Results
+
+12 passed, 0 failed:
+- Success: JWT pair returned, DB updated, correct community_id in token, roles scoped correctly, old roles absent
+- Failure: unauthenticated (401), no role in community (403×2), missing/string/negative/zero community_id (400×4)

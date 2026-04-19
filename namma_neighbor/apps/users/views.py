@@ -14,7 +14,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-from apps.users.models import PhoneOTP, User
+from apps.users.models import PhoneOTP, User, UserRole
 from apps.users.serializers import SendOTPSerializer, CustomTokenObtainPairSerializer
 from apps.users.tasks import send_otp_sms
 from datetime import timedelta
@@ -162,3 +162,34 @@ class LogoutView(APIView):
             )
 
         return Response({"message": "Logged out"}, status=status.HTTP_200_OK)
+
+
+class SwitchCommunityView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        community_id = request.data.get("community_id")
+
+        if community_id is None or not isinstance(community_id, int) or community_id <= 0:
+            return Response(
+                {"error": "validation_error", "detail": "community_id must be a positive integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not UserRole.objects.filter(user=request.user, community_id=community_id).exists():
+            return Response(
+                {"error": "permission_denied", "detail": "You do not have a role in this community"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        request.user.active_community_id = community_id
+        request.user.save(update_fields=['active_community_id'])
+
+        refresh = CustomTokenObtainPairSerializer.get_token(request.user)
+        access_token = refresh.access_token
+
+        return Response({
+            "access": str(access_token),
+            "refresh": str(refresh),
+            "community_id": request.user.active_community_id,
+        }, status=status.HTTP_200_OK)
