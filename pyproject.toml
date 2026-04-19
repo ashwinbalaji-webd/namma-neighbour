@@ -1,0 +1,38 @@
+[project]
+name = "namma-neighbour"
+version = "0.1.0"
+description = "Hyperlocal marketplace for gated residential communities"
+requires-python = ">=3.12"
+dependencies = [
+    "Django>=5.1,<5.2",
+    "djangorestframework",
+    "djangorestframework-simplejwt",
+    "django-environ",
+    "django-cors-headers",
+    "django-ratelimit",
+    "celery[redis]",
+    "django-celery-beat",
+    "redis",
+    "boto3",
+    "django-storages[s3]",
+    "gunicorn",
+    "psycopg2-binary",
+    "Pillow",
+    "requests",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-django",
+    "factory-boy",
+    "faker",
+    "freezegun",
+    "moto[s3]",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
