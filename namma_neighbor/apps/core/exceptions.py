@@ -3,9 +3,18 @@ from rest_framework.exceptions import (
     ValidationError, PermissionDenied, NotAuthenticated,
     AuthenticationFailed, NotFound, MethodNotAllowed
 )
+from rest_framework.response import Response
+from rest_framework import status
+from django_ratelimit.exceptions import Ratelimited
 
 
 def custom_exception_handler(exc, context):
+    if isinstance(exc, Ratelimited):
+        return Response(
+            {"error": "rate_limited", "detail": "Too many requests. Please try again later."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     response = exception_handler(exc, context)
     if response is None:
         return None

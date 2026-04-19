@@ -25,6 +25,10 @@
     "section-02-core-app": {
       "status": "complete",
       "commit_hash": "89b314c8"
+    },
+    "section-03-user-models": {
+      "status": "complete",
+      "commit_hash": "486e6c5a"
     }
   },
   "pre_commit": {
