@@ -29,6 +29,10 @@
     "section-03-user-models": {
       "status": "complete",
       "commit_hash": "486e6c5a"
+    },
+    "section-04-otp-send": {
+      "status": "complete",
+      "commit_hash": "a6312c07"
     }
   },
   "pre_commit": {
