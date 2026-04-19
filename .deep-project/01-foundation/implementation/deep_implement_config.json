@@ -20,7 +20,11 @@
   "sections_state": {
     "section-01-project-skeleton": {
       "status": "complete",
-      "commit_hash": "1f8653d"
+      "commit_hash": "ef589882"
+    },
+    "section-02-core-app": {
+      "status": "complete",
+      "commit_hash": "89b314c8"
     }
   },
   "pre_commit": {
