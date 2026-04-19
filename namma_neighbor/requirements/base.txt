@@ -1,0 +1,15 @@
+Django>=5.1,<5.2
+djangorestframework
+djangorestframework-simplejwt
+django-environ
+django-cors-headers
+django-ratelimit
+celery
+django-celery-beat
+redis
+boto3
+django-storages[s3]
+gunicorn
+psycopg2-binary
+Pillow
+requests
