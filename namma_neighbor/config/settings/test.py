@@ -1,5 +1,8 @@
 from .base import *
 
+DEBUG = True
+ALLOWED_HOSTS = ['*', 'testserver']
+
 SMS_BACKEND = 'apps.core.sms.backends.console.ConsoleSMSBackend'
 
 DATABASES = {
