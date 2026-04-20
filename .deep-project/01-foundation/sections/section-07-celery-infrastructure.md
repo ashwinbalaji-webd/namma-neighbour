@@ -20,11 +20,24 @@ This section establishes the async task infrastructure for NammaNeighbor. It cov
 
 | Path | Action |
 |------|--------|
-| `config/celery.py` | Create — Celery application definition |
-| `config/__init__.py` | Modify — import `celery_app` at startup |
-| `config/settings/base.py` | Modify — add all `CELERY_*` settings |
-| `apps/users/tasks.py` | Create — `send_otp_sms` stub + `purge_expired_otps` implementation |
-| `apps/users/tests/test_celery.py` | Create — all Celery infrastructure tests |
+| `config/celery.py` | Modified — removed `debug_task` stub (existed from prior scaffolding) |
+| `config/__init__.py` | Already correct — `from .celery import app as celery_app` |
+| `config/settings/base.py` | Modified — added full `CELERY_*` settings block; `kombu`/`celery.schedules` imports moved to file top |
+| `apps/users/tasks.py` | Modified — added logging, explicit `MaxRetriesExceededError` import, phone masking in error log, `PhoneOTP` import moved inside function body |
+| `apps/users/tests/test_celery.py` | Created — 10 tests for Celery infrastructure |
+| `apps/vendors/tasks.py` | Created — stub `recheck_fssai_expiry` |
+| `apps/payments/tasks.py` | Created — stub `release_payment_holds` |
+
+## Deviations from Plan
+
+- `tasks.py` already existed from section-04 with basic `send_otp_sms`. This section completed it with logging, proper exception handling, and moved `PhoneOTP` import inside the function body.
+- `config/celery.py` and `config/__init__.py` already existed from section-01 skeleton. `debug_task` was removed.
+- Two extra files created: `apps/vendors/tasks.py` and `apps/payments/tasks.py` with placeholder stubs required by beat schedule.
+- Phone number masked in error log (`****NNNN`) for PII safety — user-requested.
+
+## Final Test Count
+
+10 tests in `apps/users/tests/test_celery.py`. All pass. Full suite: 133 passed, 1 skipped.
 
 ---
 

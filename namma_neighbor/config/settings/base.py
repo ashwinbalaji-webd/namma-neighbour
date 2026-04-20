@@ -1,7 +1,10 @@
 import os
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
+
 import environ
+from celery.schedules import crontab
+from kombu import Queue
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -127,8 +130,44 @@ CACHES = {
 }
 
 CELERY_BROKER_URL = env('REDIS_URL', default='redis://localhost:6379/0')
-CELERY_TIMEZONE = 'Asia/Kolkata'
+CELERY_RESULT_BACKEND = env('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_TASK_IGNORE_RESULT = True
+CELERY_TIMEZONE = 'Asia/Kolkata'
+CELERY_ENABLE_UTC = True
+
+CELERY_TASK_QUEUES = (
+    Queue('default'),
+    Queue('sms'),
+    Queue('kyc'),
+    Queue('payments'),
+    Queue('notifications'),
+)
+CELERY_TASK_DEFAULT_QUEUE = 'default'
+
+CELERY_TASK_ROUTES = {
+    'apps.users.tasks.*':         {'queue': 'sms'},
+    'apps.vendors.tasks.*':       {'queue': 'kyc'},
+    'apps.payments.tasks.*':      {'queue': 'payments'},
+    'apps.notifications.tasks.*': {'queue': 'notifications'},
+}
+
+CELERY_BEAT_SCHEDULE = {
+    'recheck_fssai_expiry': {
+        'task': 'apps.vendors.tasks.recheck_fssai_expiry',
+        'schedule': crontab(hour=6, minute=0),
+        'options': {'queue': 'kyc'},
+    },
+    'release_payment_holds': {
+        'task': 'apps.payments.tasks.release_payment_holds',
+        'schedule': crontab(minute=0),
+        'options': {'queue': 'payments'},
+    },
+    'purge_expired_otps': {
+        'task': 'apps.users.tasks.purge_expired_otps',
+        'schedule': crontab(hour=2, minute=0),
+        'options': {'queue': 'sms'},
+    },
+}
 
 LOGGING = {
     'version': 1,
