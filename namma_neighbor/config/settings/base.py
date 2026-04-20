@@ -210,9 +210,24 @@ LOGGING = {
 SMS_BACKEND = env('SMS_BACKEND', default='apps.core.sms.backends.console.ConsoleSMSBackend')
 OTP_HMAC_SECRET = env('OTP_HMAC_SECRET', default='dev-hmac-secret')
 
-AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', default='')
-AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY', default='')
-AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME', default='')
+AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', default=None)
+AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY', default=None)
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": env("AWS_STORAGE_BUCKET_NAME"),
+            "region_name": "ap-south-1",
+            "default_acl": "private",
+            "file_overwrite": False,
+            "querystring_expire": 3600,
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = []

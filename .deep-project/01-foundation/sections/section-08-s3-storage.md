@@ -28,7 +28,7 @@ The `storages` package must be added to `THIRD_PARTY_APPS` in `base.py` as `'sto
 |------|--------|
 | `apps/core/storage.py` | Create — DocumentStorage and MediaStorage classes |
 | `config/settings/base.py` | Modify — add STORAGES dict and AWS_* settings |
-| `.env.example` | Modify — document required S3 environment variables |
+| `namma_neighbor/.env.example` | Modify — document required S3 environment variables |
 | `apps/core/tests/test_storage.py` | Create — storage unit tests |
 
 ---
@@ -130,23 +130,17 @@ Create two storage subclasses. Both inherit from `S3Boto3Storage`. The only thin
 from storages.backends.s3boto3 import S3Boto3Storage
 
 class DocumentStorage(S3Boto3Storage):
-    """
-    S3 storage for sensitive documents: KYB/KYC files, FSSAI certificates,
-    GST certificates. Keys are prefixed with 'documents/'.
-    Used by: FileField(storage=DocumentStorage()) on vendor/community models.
-    """
+    """S3 storage for sensitive documents (KYB/KYC, FSSAI, GST). Keys prefixed with 'documents/'."""
     location = "documents"
+    file_overwrite = False
 
 class MediaStorage(S3Boto3Storage):
-    """
-    S3 storage for public-facing media: product images, vendor logos,
-    community photos. Keys are prefixed with 'media/'.
-    Used by: ImageField(storage=MediaStorage()) on catalogue/vendor models.
-    """
+    """S3 storage for public-facing media (product images, logos). Keys prefixed with 'media/'."""
     location = "media"
+    file_overwrite = False
 ```
 
-Both classes inherit all behavior from `S3Boto3Storage`: the ACL, `file_overwrite`, `querystring_expire`, region, and credentials come from the `STORAGES` dict in `base.py`. No per-class overrides are needed beyond `location`.
+**Deviation from plan:** `file_overwrite = False` is set on each subclass (not just relying on STORAGES OPTIONS). STORAGES dict OPTIONS only apply when storage is accessed via Django's `default_storage` — model fields using `storage=DocumentStorage()` directly do not read OPTIONS. `S3Boto3Storage` defaults to `file_overwrite = True`, so the class attribute is required for correct no-overwrite behavior.
 
 Fields in other apps use these classes as:
 
@@ -196,6 +190,8 @@ AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default=None)
 ```
 
 Boto3 reads these from the Django settings namespace automatically when using `django-storages`.
+
+**Test settings:** `config/settings/test.py` sets `AWS_STORAGE_BUCKET_NAME=test-bucket` via `os.environ.setdefault` before importing base, so tests run without a real `.env`. This is required because `env("AWS_STORAGE_BUCKET_NAME")` (no default) raises `ImproperlyConfigured` at settings load if the var is absent.
 
 ### `.env.example` additions
 

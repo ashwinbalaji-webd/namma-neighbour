@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault('AWS_STORAGE_BUCKET_NAME', 'test-bucket')
+
 from .base import *
 
 DEBUG = True
