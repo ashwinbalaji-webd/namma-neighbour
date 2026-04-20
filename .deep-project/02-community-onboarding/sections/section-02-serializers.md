@@ -1,5 +1,3 @@
-Now I have all the context I need. Let me generate the section content for `section-02-serializers`.
-
 # Section 02: Serializers
 
 ## Overview
@@ -269,3 +267,22 @@ from rest_framework import serializers
 from rest_framework.exceptions import NotFound
 from apps.communities.models import Community, Building, Flat, ResidentProfile
 ```
+
+---
+
+## Deviations from Plan (What Was Actually Built)
+
+### Files Created
+- `apps/communities/serializers.py` — 7 serializers as planned
+- `apps/communities/tests/test_serializers.py` — 11 tests, all passing
+
+### Deviations
+
+1. **`joined_at` is a `SerializerMethodField` alias for `created_at`** — `ResidentProfile` no longer has a `joined_at` field (removed in section 01 when inheriting `TimestampedModel`). Both `ResidentProfileSerializer` and `ResidentApprovalSerializer` expose `joined_at = serializers.DateTimeField(source='created_at', read_only=True)` to maintain the API contract clients expect.
+
+2. **Building name validation is case-insensitive** — plan said "unique in the list"; implementation uses `{n.lower() for n in stripped}` to catch `['Tower A', 'tower a']`.
+
+3. **`invite_code` and building names are stripped** — `.strip()` added before normalization to handle mobile paste with trailing spaces.
+
+### Test Count
+11 tests — all passing.
