@@ -88,9 +88,11 @@ These cannot be automated in pytest but should be manually verified after `docke
 
 ### `Dockerfile`
 
-Base image: `python:3.12-slim`. Install system packages needed for psycopg2 (`libpq-dev`, `gcc`). Copy `requirements/development.txt` and install with pip (no cache). Copy the project. Expose port 8000.
+Base image: `python:3.12-slim`. No apt packages needed — `psycopg2-binary` is a pre-compiled wheel requiring no build tools. Copy `requirements/development.txt` and install with pip (no cache). Copy the project. Expose port 8000.
 
-Entrypoint for local development only: run `python manage.py migrate` followed by `gunicorn config.wsgi:application --bind 0.0.0.0:8000`.
+CMD: `gunicorn config.wsgi:application --bind 0.0.0.0:8000`
+
+Migrate runs in the **web service command** in docker-compose (not in the Dockerfile CMD). This prevents celery-worker and celery-beat containers from running migrate+gunicorn if started standalone.
 
 **Important production caveat:** This auto-migration entrypoint is acceptable for local development. In production, migrations must run as a separate one-off container or ECS task before new replicas start. Concurrent auto-migration from multiple replicas will corrupt the database.
 
@@ -108,13 +110,15 @@ Five services. All application services (web, celery-worker, celery-beat) share 
 
 **redis** (redis:7-alpine)
 - Exposes port 6379
+- Named volume `redis_data:/data` for scheduler/cache persistence
 - No password in dev (acceptable for local machines)
-- Health check: `redis-cli ping` with `interval: 5s`, `retries: 3`
+- Health check: `redis-cli ping` with `interval: 5s`, `retries: 3`, `start_period: 5s`
 
 **web**
 - Depends on `db` (condition: service_healthy) and `redis` (condition: service_healthy)
 - Exposes port 8000 to the host
-- Command: the migrate-then-gunicorn entrypoint (or rely on Dockerfile CMD)
+- Command: `sh -c "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000"`
+- `env_file: .env` (web, celery-worker, celery-beat only — NOT the db service)
 
 **celery-worker**
 - Same image as web
@@ -127,7 +131,7 @@ Five services. All application services (web, celery-worker, celery-beat) share 
 - Command: `celery -A config beat --loglevel=info`
 - Depends on `redis` (service_healthy) and `web` (service_started)
 
-Top-level `volumes:` section must declare the named volume used by `db`.
+Top-level `volumes:` section declares `postgres_data` and `redis_data`.
 
 ### `.dockerignore`
 
@@ -163,7 +167,7 @@ The view logic:
 
 1. Attempt `connection.ensure_connection()` — import from `django.db`. Wrap in a try/except. On success, set `db_status = "ok"`. On exception, set `db_status = "error"`.
 
-2. Attempt to instantiate `redis.Redis.from_url(settings.REDIS_URL)` and call `.ping()`. Import `redis` (the `redis-py` package, listed in `requirements/base.txt`). Wrap in a try/except. On success, set `redis_status = "ok"`. On exception, set `redis_status = "error"`.
+2. Attempt to instantiate `redis.Redis.from_url(settings.REDIS_URL)` and call `.ping()`. Import `redis` (the `redis-py` package, listed in `requirements/base.txt`). Wrap in `except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError, ConnectionError)`. On success, set `redis_status = "ok"`. On exception, set `redis_status = "error"`.
 
 3. Determine overall status: `"ok"` if both are `"ok"`, otherwise `"error"`.
 

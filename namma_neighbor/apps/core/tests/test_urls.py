@@ -41,7 +41,11 @@ def test_protected_endpoint_requires_jwt(client):
 
 @pytest.mark.django_db
 def test_health_check_endpoint_returns_json(client):
-    """GET /health/ returns JSON response."""
-    response = client.get('/health/')
+    """GET /health/ returns a JSON response (status reflects connectivity)."""
+    from unittest.mock import patch
+    with patch("apps.core.views.connection"), \
+         patch("apps.core.views.redis.Redis.from_url") as mock_redis:
+        mock_redis.return_value.ping.return_value = True
+        response = client.get('/health/')
     assert response.status_code == 200
     assert 'application/json' in response['Content-Type']
