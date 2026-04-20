@@ -1,5 +1,3 @@
-The codebase doesn't exist yet — this is a greenfield implementation. I have everything I need from the plan files. Now I'll generate the section content.
-
 # Section 01: Models and Migration
 
 ## Overview
@@ -334,3 +332,28 @@ Before marking this section done, verify:
 - [ ] `Community()` with no invite_code, after `.save()`, has a 6-char uppercase `invite_code`
 - [ ] Two `Community` objects cannot share the same `invite_code` (IntegrityError at DB level)
 - [ ] Two `ResidentProfile` objects with the same `flat` but different `user` — both save without error
+
+---
+
+## Deviations from Plan (What Was Actually Built)
+
+### Files Created/Modified
+- `apps/communities/models.py` — replaced stub (as planned)
+- `apps/communities/migrations/0002_community_full_schema.py` — new migration with RunPython backfill
+- `apps/communities/tests/test_models.py` — 23 tests, all passing
+- `0003_fix_slug_nullable.py` was initially created but **removed** — consolidated into 0002
+
+### Deviations
+
+1. **`ResidentProfile` inherits `TimestampedModel`** (plan said `models.Model`). Adds `created_at` + `updated_at` for status-change auditing. `joined_at` field removed — `created_at` serves the same purpose.
+
+2. **`slug` is `null=True`** (plan said `blank=True` only). Required to avoid empty-string uniqueness collision on existing rows. New rows always get a slug from the view before save.
+
+3. **Migration uses `RunPython` backfill** before adding `unique=True` on `invite_code`. Splits: `AddField(invite_code, default='')` → `RunPython(backfill_invite_codes)` → `AlterField(invite_code, unique=True)`. Production-safe.
+
+4. **`_generate_invite_code` uses `secrets.choice`** instead of `random.choices` (plan showed `random.choices`). Cryptographically secure.
+
+5. **`infer_floor` uses regex** (`re.match(r'^(\d{2,})')`) instead of manual character-scan loop. Same behavior, clearer intent.
+
+### Test Count
+23 tests across 5 test classes — all passing.
