@@ -1,8 +1,11 @@
+from decimal import Decimal
+
 import pytest
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.communities.models import Building, Flat, ResidentProfile
 from apps.users.models import UserRole
+from apps.users.tests.factories import UserFactory
 
 REGISTER_URL = "/api/v1/communities/register/"
 JOIN_URL = "/api/v1/communities/join/"
@@ -361,3 +364,167 @@ class TestResidentRejectView:
             f"/api/v1/communities/{community_with_buildings.slug}/residents/{pending_resident.id}/reject/"
         )
         assert response.status_code == 403
+
+
+@pytest.mark.django_db
+class TestCommunitySettingsView:
+    """Tests for PATCH /{slug}/settings/"""
+
+    def test_admin_updates_commission_pct(self, api_client, community_with_buildings, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.patch(
+            f"/api/v1/communities/{community_with_buildings.slug}/settings/",
+            {"commission_pct": "12.50"},
+            format="json",
+        )
+        assert response.status_code == 200
+        community_with_buildings.refresh_from_db()
+        assert community_with_buildings.commission_pct == Decimal("12.50")
+
+    def test_admin_adds_new_buildings(self, api_client, community_with_buildings, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.patch(
+            f"/api/v1/communities/{community_with_buildings.slug}/settings/",
+            {"buildings": ["Tower C", "Tower D"]},
+            format="json",
+        )
+        assert response.status_code == 200
+        assert Building.objects.filter(community=community_with_buildings, name="Tower C").exists()
+        assert Building.objects.filter(community=community_with_buildings, name="Tower D").exists()
+
+    def test_admin_deactivates_community(self, api_client, community_with_buildings, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.patch(
+            f"/api/v1/communities/{community_with_buildings.slug}/settings/",
+            {"is_active": False},
+            format="json",
+        )
+        assert response.status_code == 200
+        community_with_buildings.refresh_from_db()
+        assert community_with_buildings.is_active is False
+
+    def test_non_admin_gets_403(self, api_client, community_with_buildings, resident_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(resident_user))
+        response = api_client.patch(
+            f"/api/v1/communities/{community_with_buildings.slug}/settings/",
+            {"commission_pct": "10.00"},
+            format="json",
+        )
+        assert response.status_code == 403
+
+    def test_adding_duplicate_building_name_silently_ignored(self, api_client, community_with_buildings, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        initial_count = Building.objects.filter(community=community_with_buildings).count()
+        response = api_client.patch(
+            f"/api/v1/communities/{community_with_buildings.slug}/settings/",
+            {"buildings": ["Tower A"]},
+            format="json",
+        )
+        assert response.status_code == 200
+        assert Building.objects.filter(community=community_with_buildings).count() == initial_count
+
+    def test_building_removal_not_supported(self, api_client, community_with_buildings, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.patch(
+            f"/api/v1/communities/{community_with_buildings.slug}/settings/",
+            {"remove_buildings": ["Tower A"]},
+            format="json",
+        )
+        assert response.status_code == 400
+
+    def test_wrong_community_admin_gets_403(self, api_client, other_community, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.patch(
+            f"/api/v1/communities/{other_community.slug}/settings/",
+            {"commission_pct": "10.00"},
+            format="json",
+        )
+        assert response.status_code == 403
+
+    def test_unauthenticated_gets_401(self, api_client, community_with_buildings):
+        response = api_client.patch(
+            f"/api/v1/communities/{community_with_buildings.slug}/settings/",
+            {"commission_pct": "10.00"},
+            format="json",
+        )
+        assert response.status_code == 401
+
+
+@pytest.mark.django_db
+class TestInviteRegenerateView:
+    """Tests for POST /{slug}/invite/regenerate/"""
+
+    def test_admin_gets_new_invite_code(self, api_client, community_with_buildings, admin_user):
+        old_code = community_with_buildings.invite_code
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.post(f"/api/v1/communities/{community_with_buildings.slug}/invite/regenerate/")
+        assert response.status_code == 200
+        assert "invite_code" in response.data
+        community_with_buildings.refresh_from_db()
+        assert community_with_buildings.invite_code == response.data["invite_code"]
+        assert community_with_buildings.invite_code != old_code
+
+    def test_new_code_is_6_char_uppercase_alphanumeric(self, api_client, community_with_buildings, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.post(f"/api/v1/communities/{community_with_buildings.slug}/invite/regenerate/")
+        assert response.status_code == 200
+        code = response.data["invite_code"]
+        assert len(code) == 6
+        assert code.isalnum()
+        assert code == code.upper()
+
+    def test_old_code_no_longer_works_for_join(self, api_client, community_with_buildings, admin_user):
+        old_code = community_with_buildings.invite_code
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        api_client.post(f"/api/v1/communities/{community_with_buildings.slug}/invite/regenerate/")
+
+        new_user = UserFactory()
+        building = Building.objects.filter(community=community_with_buildings).first()
+        api_client.force_authenticate(user=new_user)
+        response = api_client.post(JOIN_URL, {
+            "invite_code": old_code,
+            "building_id": building.id,
+            "flat_number": "999",
+            "user_type": ResidentProfile.UserType.TENANT,
+        }, format="json")
+        assert response.status_code == 404
+
+    def test_non_admin_gets_403(self, api_client, community_with_buildings, resident_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(resident_user))
+        response = api_client.post(f"/api/v1/communities/{community_with_buildings.slug}/invite/regenerate/")
+        assert response.status_code == 403
+
+    def test_wrong_community_admin_gets_403(self, api_client, other_community, admin_user):
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.post(f"/api/v1/communities/{other_community.slug}/invite/regenerate/")
+        assert response.status_code == 403
+
+    def test_unauthenticated_gets_401(self, api_client, community_with_buildings):
+        response = api_client.post(f"/api/v1/communities/{community_with_buildings.slug}/invite/regenerate/")
+        assert response.status_code == 401
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(reason="Requires Django admin registration from section-07-django-admin", strict=False)
+class TestDjangoAdminCommunitySettingsActions:
+    """Smoke tests to verify admin list page loads and custom actions fire."""
+
+    def test_mark_as_reviewed_action(self, admin_client, community):
+        data = {
+            "action": "mark_as_reviewed",
+            "_selected_action": [str(community.pk)],
+        }
+        response = admin_client.post("/admin/communities/community/", data)
+        assert response.status_code in (200, 302)
+        community.refresh_from_db()
+        assert community.is_reviewed is True
+
+    def test_approve_selected_residents_action(self, admin_client, pending_resident_profile):
+        data = {
+            "action": "approve_selected",
+            "_selected_action": [str(pending_resident_profile.pk)],
+        }
+        response = admin_client.post("/admin/communities/residentprofile/", data)
+        assert response.status_code in (200, 302)
+        pending_resident_profile.refresh_from_db()
+        assert pending_resident_profile.status == ResidentProfile.Status.APPROVED

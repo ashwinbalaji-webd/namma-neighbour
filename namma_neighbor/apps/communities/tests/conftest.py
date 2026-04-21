@@ -150,3 +150,37 @@ def rejected_resident_user(db, community_with_buildings):
         user_type=ResidentProfile.UserType.TENANT, status=ResidentProfile.Status.REJECTED,
     )
     return user
+
+
+@pytest.fixture
+def admin_user(db, community_with_buildings):
+    user = UserFactory(active_community=community_with_buildings)
+    UserRole.objects.create(user=user, role='community_admin', community=community_with_buildings)
+    return user
+
+
+@pytest.fixture
+def resident_user(db, community_with_buildings):
+    user = UserFactory(active_community=community_with_buildings)
+    UserRole.objects.create(user=user, role='resident', community=community_with_buildings)
+    return user
+
+
+@pytest.fixture
+def other_community(db):
+    return Community.objects.create(
+        name="Other Towers",
+        city="Delhi",
+        slug=generate_unique_slug("Other Towers", "Delhi"),
+    )
+
+
+@pytest.fixture
+def pending_resident_profile(db, community_with_buildings):
+    user = UserFactory()
+    building = Building.objects.filter(community=community_with_buildings).first()
+    flat, _ = Flat.objects.get_or_create(building=building, flat_number="801")
+    return ResidentProfile.objects.create(
+        user=user, community=community_with_buildings, flat=flat,
+        user_type=ResidentProfile.UserType.TENANT, status=ResidentProfile.Status.PENDING,
+    )

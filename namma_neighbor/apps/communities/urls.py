@@ -4,6 +4,8 @@ from apps.communities.views import (
     BuildingListView,
     CommunityDetailView,
     CommunityRegisterView,
+    CommunitySettingsView,
+    InviteRegenerateView,
     JoinCommunityView,
     ResidentApproveView,
     ResidentListView,
@@ -20,4 +22,6 @@ urlpatterns = [
     path("<slug:slug>/residents/", ResidentListView.as_view(), name="resident-list"),
     path("<slug:slug>/residents/<int:pk>/approve/", ResidentApproveView.as_view(), name="resident-approve"),
     path("<slug:slug>/residents/<int:pk>/reject/", ResidentRejectView.as_view(), name="resident-reject"),
+    path("<slug:slug>/settings/", CommunitySettingsView.as_view(), name="settings"),
+    path("<slug:slug>/invite/regenerate/", InviteRegenerateView.as_view(), name="invite-regenerate"),
 ]

@@ -10,11 +10,12 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
-from apps.communities.models import Building, Community, Flat, ResidentProfile, infer_floor
+from apps.communities.models import Building, Community, Flat, ResidentProfile, _generate_invite_code, infer_floor
 from apps.communities.serializers import (
     BuildingSerializer,
     CommunityDetailSerializer,
     CommunityRegistrationSerializer,
+    CommunitySettingsSerializer,
     JoinCommunitySerializer,
     ResidentApprovalSerializer,
     ResidentProfileSerializer,
@@ -162,3 +163,53 @@ class ResidentRejectView(APIView):
         profile.status = ResidentProfile.Status.REJECTED
         profile.save(update_fields=['status'])
         return Response(ResidentApprovalSerializer(profile).data)
+
+
+class CommunitySettingsView(APIView):
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
+
+    def patch(self, request, slug):
+        community = get_community_or_403(slug, request)
+
+        serializer = CommunitySettingsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        buildings = serializer.validated_data.pop('buildings', None)
+        if buildings:
+            Building.objects.bulk_create(
+                [Building(community=community, name=n) for n in buildings],
+                ignore_conflicts=True,
+            )
+
+        update_fields = []
+        for field in ('commission_pct', 'is_active'):
+            if field in serializer.validated_data:
+                setattr(community, field, serializer.validated_data[field])
+                update_fields.append(field)
+
+        if update_fields:
+            community.save(update_fields=update_fields)
+
+        building_names = list(
+            Building.objects.filter(community=community).values_list('name', flat=True)
+        )
+        return Response({
+            'slug': community.slug,
+            'commission_pct': community.commission_pct,
+            'is_active': community.is_active,
+            'buildings': building_names,
+        })
+
+
+class InviteRegenerateView(APIView):
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
+
+    def post(self, request, slug):
+        community = get_community_or_403(slug, request)
+
+        new_code = _generate_invite_code()
+        while Community.objects.filter(invite_code=new_code).exists():
+            new_code = _generate_invite_code()
+
+        Community.objects.filter(pk=community.pk).update(invite_code=new_code)
+        return Response({'invite_code': new_code})

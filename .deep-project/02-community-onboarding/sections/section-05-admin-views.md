@@ -210,11 +210,29 @@ If a `CommunitySettingsSerializer` is added to `apps/communities/serializers.py`
 
 ---
 
+## Actual Implementation Notes
+
+### Files Created/Modified
+- `apps/communities/views.py` — added `CommunitySettingsView`, `InviteRegenerateView`; updated imports to include `_generate_invite_code`, `CommunitySettingsSerializer`
+- `apps/communities/serializers.py` — added `CommunitySettingsSerializer` with `min_value=0, max_value=100` on `commission_pct` and `validate()` that rejects `remove_buildings`
+- `apps/communities/urls.py` — added `<slug>/settings/` and `<slug>/invite/regenerate/` URL patterns
+- `apps/communities/tests/test_views.py` — added `TestCommunitySettingsView` (8 tests), `TestInviteRegenerateView` (6 tests), `TestDjangoAdminCommunitySettingsActions` (2 xfail smoke tests)
+- `apps/communities/tests/conftest.py` — added `admin_user`, `resident_user`, `other_community`, `pending_resident_profile` fixtures
+
+### Deviations from Plan
+- `remove_buildings` rejection is in `CommunitySettingsSerializer.validate()` (not view-level early return as plan showed) — cleaner, serializer is the canonical guard
+- `is_active` allows both True and False (plan said deactivation-only) — user confirmed allow both directions
+- `commission_pct` has `min_value=0, max_value=100` added (plan didn't specify) — user requested
+- Response includes `buildings` list (plan didn't specify) — added for frontend confirmation
+
+### Test Results
+87 passed, 2 xfailed (Django admin smoke tests pending section 07 admin registration).
+
 ## Checklist
 
-- [ ] `get_community_or_403` helper defined and shared between both views (not duplicated)
-- [ ] `CommunitySettingsView.patch()` calls the helper, handles `buildings` via `bulk_create(ignore_conflicts=True)`, and uses `save(update_fields=[...])` for scalar field updates
-- [ ] `InviteRegenerateView.post()` calls the helper, reuses invite-code generation logic from `models.py`, updates with a targeted queryset `.update()` call
-- [ ] Both views declare `permission_classes = [IsAuthenticated, IsCommunityAdmin]`
-- [ ] All test stubs written before implementation
-- [ ] Tests cover: admin success, non-admin 403, wrong-community 403, unauthenticated 401, duplicate building ignored, old invite code invalidated
+- [x] `get_community_or_403` helper defined and shared between both views (not duplicated)
+- [x] `CommunitySettingsView.patch()` calls the helper, handles `buildings` via `bulk_create(ignore_conflicts=True)`, and uses `save(update_fields=[...])` for scalar field updates
+- [x] `InviteRegenerateView.post()` calls the helper, reuses invite-code generation logic from `models.py`, updates with a targeted queryset `.update()` call
+- [x] Both views declare `permission_classes = [IsAuthenticated, IsCommunityAdmin]`
+- [x] All test stubs written before implementation
+- [x] Tests cover: admin success, non-admin 403, wrong-community 403, unauthenticated 401, duplicate building ignored, old invite code invalidated

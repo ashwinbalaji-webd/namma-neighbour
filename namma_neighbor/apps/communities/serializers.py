@@ -122,3 +122,20 @@ class ResidentApprovalSerializer(serializers.ModelSerializer):
         model = ResidentProfile
         fields = ['id', 'user_type', 'status', 'flat', 'joined_at']
         read_only_fields = ['id', 'user_type', 'status', 'joined_at']
+
+
+class CommunitySettingsSerializer(serializers.Serializer):
+    commission_pct = serializers.DecimalField(
+        max_digits=5, decimal_places=2, required=False,
+        min_value=0, max_value=100,
+    )
+    buildings = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+    )
+    is_active = serializers.BooleanField(required=False)
+
+    def validate(self, attrs):
+        if 'remove_buildings' in self.initial_data:
+            raise serializers.ValidationError({"error": "Building removal is not supported"})
+        return attrs
