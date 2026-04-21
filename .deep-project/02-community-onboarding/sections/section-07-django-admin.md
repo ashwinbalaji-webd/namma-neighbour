@@ -209,22 +209,35 @@ Do not call `Community.save()` blindly — to avoid triggering unrelated `save()
 
 Ensure `apps/communities/apps.py` has the correct `default_auto_field` and that the app label is `communities`. The `admin.py` is auto-discovered by Django; no manual import is needed as long as `INSTALLED_APPS` contains `'apps.communities'`.
 
+## Implementation Notes (actual build)
+
+### Files created/modified
+- `namma_neighbor/apps/communities/admin.py` — full implementation
+- `namma_neighbor/apps/communities/tests/test_admin.py` — 7 tests (all pass)
+
+### Deviations from plan
+- `joined_at` field does not exist on `ResidentProfile`; used `created_at` (from `TimestampedModel`) instead. Plan spec had a bug.
+- `regenerate_invite_codes` uses `_generate_invite_code()` from models (crypto-secure via `secrets.choice`) instead of `random.choices` as the plan's prose suggested. The plan's skeleton correctly imported `secrets`; prose section was wrong.
+- Invite code regeneration wraps `.update()` in `try/except IntegrityError` (TOCTOU-safe) rather than a Python-side exists-check + update.
+- `admin_client` test fixture defined locally in `test_admin.py` (not from pytest-django) because the custom User model uses `phone` as `USERNAME_FIELD` — pytest-django's built-in would fail trying `create_superuser(username=...)`.
+- `ResidentProfileAdmin.readonly_fields` includes `updated_at` (added during review — also provided by `TimestampedModel`).
+
 ## Summary Checklist
 
-- [ ] `BuildingInline` (TabularInline) with `model = Building`, `fields = ('name',)`, `extra = 1`
-- [ ] `CommunityAdmin` registered with `@admin.register(Community)`
-  - [ ] `list_display` includes all 8 columns
-  - [ ] `list_filter` on `is_active`, `is_reviewed`, `city`
-  - [ ] `readonly_fields` includes `invite_code`, `slug`, counter fields, timestamps
-  - [ ] `inlines = [BuildingInline]`
-  - [ ] `deactivate_communities` action (`.update(is_active=False)`)
-  - [ ] `mark_as_reviewed` action (`.update(is_reviewed=True)`)
-  - [ ] `regenerate_invite_codes` action (per-instance with collision retry)
-- [ ] `ResidentProfileAdmin` registered with `@admin.register(ResidentProfile)`
-  - [ ] `list_display` includes all 6 columns
-  - [ ] `list_filter` on `status`, `community`, `user_type`
-  - [ ] `readonly_fields = ('joined_at', 'user')`
-  - [ ] `has_delete_permission` returns `False`
-  - [ ] `approve_selected` action (`.update(status='APPROVED')`)
-  - [ ] `reject_selected` action (`.update(status='REJECTED')`)
-- [ ] Test file `apps/communities/tests/test_admin.py` created with stubs for all 7 test cases
+- [x] `BuildingInline` (TabularInline) with `model = Building`, `fields = ('name',)`, `extra = 1`
+- [x] `CommunityAdmin` registered with `@admin.register(Community)`
+  - [x] `list_display` includes all 8 columns
+  - [x] `list_filter` on `is_active`, `is_reviewed`, `city`
+  - [x] `readonly_fields` includes `invite_code`, `slug`, counter fields, timestamps
+  - [x] `inlines = [BuildingInline]`
+  - [x] `deactivate_communities` action (`.update(is_active=False)`)
+  - [x] `mark_as_reviewed` action (`.update(is_reviewed=True)`)
+  - [x] `regenerate_invite_codes` action (crypto-secure, collision-safe via IntegrityError retry)
+- [x] `ResidentProfileAdmin` registered with `@admin.register(ResidentProfile)`
+  - [x] `list_display` includes 6 columns (uses `created_at` not `joined_at`)
+  - [x] `list_filter` on `status`, `community`, `user_type`
+  - [x] `readonly_fields = ('created_at', 'updated_at', 'user')`
+  - [x] `has_delete_permission` returns `False`
+  - [x] `approve_selected` action (`.update(status='APPROVED')`)
+  - [x] `reject_selected` action (`.update(status='REJECTED')`)
+- [x] Test file `apps/communities/tests/test_admin.py` with 7 fully-implemented tests
