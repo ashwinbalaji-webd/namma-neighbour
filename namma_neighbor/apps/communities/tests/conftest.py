@@ -184,3 +184,21 @@ def pending_resident_profile(db, community_with_buildings):
         user=user, community=community_with_buildings, flat=flat,
         user_type=ResidentProfile.UserType.TENANT, status=ResidentProfile.Status.PENDING,
     )
+
+
+@pytest.fixture
+def community_admin_token(community_admin):
+    from apps.users.serializers import CustomTokenObtainPairSerializer
+    refresh = CustomTokenObtainPairSerializer.get_token(community_admin)
+    return f'Bearer {str(refresh.access_token)}'
+
+
+@pytest.fixture
+def other_resident(db, other_community):
+    building = Building.objects.create(community=other_community, name="Block A")
+    flat, _ = Flat.objects.get_or_create(building=building, flat_number="101")
+    user = UserFactory()
+    return ResidentProfile.objects.create(
+        user=user, community=other_community, flat=flat,
+        user_type=ResidentProfile.UserType.TENANT, status=ResidentProfile.Status.PENDING,
+    )

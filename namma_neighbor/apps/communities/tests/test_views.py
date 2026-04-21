@@ -1,9 +1,13 @@
 from decimal import Decimal
+from unittest.mock import Mock
 
 import pytest
+from django.urls import reverse
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.communities.models import Building, Flat, ResidentProfile
+from apps.communities.views import CommunityDetailView
+from apps.core.permissions import IsCommunityAdmin
 from apps.users.models import UserRole
 from apps.users.tests.factories import UserFactory
 
@@ -528,3 +532,114 @@ class TestDjangoAdminCommunitySettingsActions:
         assert response.status_code in (200, 302)
         pending_resident_profile.refresh_from_db()
         assert pending_resident_profile.status == ResidentProfile.Status.APPROVED
+
+
+class TestURLResolution:
+    """All URL patterns resolve correctly and support named reverse lookups."""
+
+    def test_register_url_resolves(self):
+        assert reverse('communities:register') == '/api/v1/communities/register/'
+
+    def test_join_url_resolves(self):
+        assert reverse('communities:join') == '/api/v1/communities/join/'
+
+    def test_community_detail_url_resolves(self):
+        assert reverse('communities:detail', kwargs={'slug': 'test-slug'}) == '/api/v1/communities/test-slug/'
+
+    def test_buildings_url_resolves(self):
+        assert reverse('communities:buildings', kwargs={'slug': 'test-slug'}) == '/api/v1/communities/test-slug/buildings/'
+
+    def test_settings_url_resolves(self):
+        assert reverse('communities:settings', kwargs={'slug': 'test-slug'}) == '/api/v1/communities/test-slug/settings/'
+
+    def test_invite_regenerate_url_resolves(self):
+        assert reverse('communities:invite-regenerate', kwargs={'slug': 'test-slug'}) == '/api/v1/communities/test-slug/invite/regenerate/'
+
+    def test_residents_list_url_resolves(self):
+        assert reverse('communities:resident-list', kwargs={'slug': 'test-slug'}) == '/api/v1/communities/test-slug/residents/'
+
+    def test_resident_approve_url_resolves(self):
+        assert reverse('communities:resident-approve', kwargs={'slug': 'test-slug', 'pk': 1}) == '/api/v1/communities/test-slug/residents/1/approve/'
+
+    def test_resident_reject_url_resolves(self):
+        assert reverse('communities:resident-reject', kwargs={'slug': 'test-slug', 'pk': 1}) == '/api/v1/communities/test-slug/residents/1/reject/'
+
+
+@pytest.mark.django_db
+class TestCommunityAdminGuard:
+    """Community admin of community A cannot act on community B's endpoints."""
+
+    def test_admin_can_access_own_community_residents(self, api_client, community_admin_token, community_with_buildings):
+        api_client.credentials(HTTP_AUTHORIZATION=community_admin_token)
+        response = api_client.get(f"/api/v1/communities/{community_with_buildings.slug}/residents/")
+        assert response.status_code == 200
+
+    def test_admin_blocked_from_other_community_residents(self, api_client, community_admin_token, other_community):
+        api_client.credentials(HTTP_AUTHORIZATION=community_admin_token)
+        response = api_client.get(f"/api/v1/communities/{other_community.slug}/residents/")
+        assert response.status_code == 403
+
+    def test_admin_blocked_from_other_community_approve(self, api_client, community_admin_token, other_community, other_resident):
+        api_client.credentials(HTTP_AUTHORIZATION=community_admin_token)
+        response = api_client.post(
+            f"/api/v1/communities/{other_community.slug}/residents/{other_resident.id}/approve/"
+        )
+        assert response.status_code == 403
+
+    def test_admin_blocked_from_other_community_settings(self, api_client, community_admin_token, other_community):
+        api_client.credentials(HTTP_AUTHORIZATION=community_admin_token)
+        response = api_client.patch(
+            f"/api/v1/communities/{other_community.slug}/settings/",
+            {"commission_pct": "10.00"},
+            format="json",
+        )
+        assert response.status_code == 403
+
+    def test_admin_blocked_from_other_community_invite_regenerate(self, api_client, community_admin_token, other_community):
+        api_client.credentials(HTTP_AUTHORIZATION=community_admin_token)
+        response = api_client.post(f"/api/v1/communities/{other_community.slug}/invite/regenerate/")
+        assert response.status_code == 403
+
+    def test_admin_with_mismatched_community_id_gets_403(self, api_client, admin_user, other_community):
+        """JWT with community_admin role but community_id != other_community.pk → 403."""
+        api_client.credentials(HTTP_AUTHORIZATION=_get_jwt_header(admin_user))
+        response = api_client.get(f"/api/v1/communities/{other_community.slug}/residents/")
+        assert response.status_code == 403
+
+
+class TestIsCommunityAdminPermission:
+    """Unit tests for the IsCommunityAdmin permission class."""
+
+    def test_allows_admin_role_in_jwt(self):
+        perm = IsCommunityAdmin()
+        request = Mock()
+        request.auth = Mock()
+        request.auth.payload = {'roles': ['community_admin']}
+        assert perm.has_permission(request, None) is True
+
+    def test_blocks_user_without_community_admin_role(self):
+        perm = IsCommunityAdmin()
+        request = Mock()
+        request.auth = Mock()
+        request.auth.payload = {'roles': ['resident']}
+        assert perm.has_permission(request, None) is False
+
+    def test_blocks_unauthenticated_request(self):
+        perm = IsCommunityAdmin()
+        request = Mock()
+        request.auth = None
+        assert perm.has_permission(request, None) is False
+
+
+class TestPublicEndpointThrottling:
+    """AnonRateThrottle is applied to public endpoints."""
+
+    def test_community_detail_has_anon_throttle(self):
+        from rest_framework.throttling import AnonRateThrottle
+        assert AnonRateThrottle in CommunityDetailView.throttle_classes
+
+    @pytest.mark.django_db
+    def test_buildings_list_has_no_auth_requirement(self, api_client, community_with_buildings):
+        url = f"/api/v1/communities/{community_with_buildings.slug}/buildings/"
+        response = api_client.get(url)
+        assert response.status_code == 200

@@ -122,7 +122,7 @@ class BuildingListView(APIView):
 
 
 class ResidentListView(APIView):
-    permission_classes = [IsCommunityAdmin]
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
 
     def get(self, request, slug):
         community = get_community_or_403(slug, request)
@@ -138,7 +138,7 @@ class ResidentListView(APIView):
 
 
 class ResidentApproveView(APIView):
-    permission_classes = [IsCommunityAdmin]
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
 
     def post(self, request, slug, pk):
         community = get_community_or_403(slug, request)
@@ -152,7 +152,7 @@ class ResidentApproveView(APIView):
 
 
 class ResidentRejectView(APIView):
-    permission_classes = [IsCommunityAdmin]
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
 
     def post(self, request, slug, pk):
         community = get_community_or_403(slug, request)

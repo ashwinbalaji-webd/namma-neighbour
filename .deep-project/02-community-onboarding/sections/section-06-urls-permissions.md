@@ -211,12 +211,27 @@ Do not set `throttle_classes` on `BuildingListView` — this endpoint is purely 
 
 ---
 
+## Actual Implementation Notes
+
+### Files Modified
+- `apps/communities/tests/test_views.py` — added TestURLResolution (9), TestCommunityAdminGuard (6), TestIsCommunityAdminPermission (3), TestPublicEndpointThrottling (2) = 20 new tests
+- `apps/communities/tests/conftest.py` — added `community_admin_token`, `other_resident` fixtures
+- `apps/communities/views.py` — added `IsAuthenticated` to ResidentListView, ResidentApproveView, ResidentRejectView for consistent 401 on unauthenticated
+
+### Deviations from Plan
+- All URL patterns, config/urls.py include, get_community_or_403, and AnonRateThrottle were already wired in sections 03-05. Section 06 added only tests and auth consistency fix.
+- `test_blocks_admin_with_mismatched_community_id` placed in TestCommunityAdminGuard (not TestIsCommunityAdminPermission) because the check lives in get_community_or_403, not IsCommunityAdmin itself.
+- Added `IsAuthenticated` to 3 older resident views for consistent 401 behavior.
+
+### Test Results
+107 passed, 2 xfailed (Django admin smoke tests pending section 07).
+
 ## Verification Checklist
 
 After completing this section, confirm:
 
-1. `uv run python manage.py check` passes with no errors
-2. `django.urls.reverse('communities:register')` returns `/api/v1/communities/register/`
-3. `django.urls.reverse('communities:resident-approve', kwargs={'slug': 'x', 'pk': 1})` returns `/api/v1/communities/x/residents/1/approve/`
-4. `uv run pytest apps/communities/tests/test_views.py -k "URLResolution"` passes (once test file is written in section-08)
-5. No circular imports — `urls.py` imports from `views.py`, `views.py` does not import from `urls.py`
+1. [x] `uv run python manage.py check` passes with no errors
+2. [x] `django.urls.reverse('communities:register')` returns `/api/v1/communities/register/`
+3. [x] `django.urls.reverse('communities:resident-approve', kwargs={'slug': 'x', 'pk': 1})` returns `/api/v1/communities/x/residents/1/approve/`
+4. [x] All URL resolution tests pass
+5. [x] No circular imports
