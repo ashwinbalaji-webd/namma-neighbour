@@ -509,7 +509,6 @@ class TestInviteRegenerateView:
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(reason="Requires Django admin registration from section-07-django-admin", strict=False)
 class TestDjangoAdminCommunitySettingsActions:
     """Smoke tests to verify admin list page loads and custom actions fire."""
 
@@ -643,3 +642,75 @@ class TestPublicEndpointThrottling:
         url = f"/api/v1/communities/{community_with_buildings.slug}/buildings/"
         response = api_client.get(url)
         assert response.status_code == 200
+
+
+@pytest.mark.django_db
+class TestIntegrationFlows:
+    """End-to-end scenario tests spanning register → join → approve flows."""
+
+    def test_full_flow_register_join_approve_jwt_claims(self, api_client, user_a, user_b):
+        """Admin registers, resident joins (PENDING), admin approves; JWT claims correct at each step."""
+        api_client.force_authenticate(user=user_a)
+        reg_resp = api_client.post(REGISTER_URL, _register_payload(), format="json")
+        assert reg_resp.status_code == 201
+        reg_payload = AccessToken(reg_resp.data["tokens"]["access"]).payload
+        community_id = reg_payload["community_id"]
+        assert "community_admin" in reg_payload["roles"]
+        admin_token = f"Bearer {reg_resp.data['tokens']['access']}"
+
+        from apps.communities.models import Community
+        community = Community.objects.get(id=community_id)
+        building = Building.objects.filter(community=community).first()
+
+        api_client.force_authenticate(user=user_b)
+        join_resp = api_client.post(JOIN_URL, {
+            "invite_code": community.invite_code,
+            "building_id": building.id,
+            "flat_number": "201",
+            "user_type": ResidentProfile.UserType.TENANT,
+        }, format="json")
+        assert join_resp.status_code == 201
+        join_payload = AccessToken(join_resp.data["tokens"]["access"]).payload
+        assert join_payload["community_id"] == community_id
+        assert "resident" in join_payload["roles"]
+        profile = ResidentProfile.objects.get(user=user_b)
+        assert profile.status == ResidentProfile.Status.PENDING
+
+        api_client.force_authenticate(user=None)
+        api_client.credentials(HTTP_AUTHORIZATION=admin_token)
+        approve_resp = api_client.post(
+            f"/api/v1/communities/{community.slug}/residents/{profile.id}/approve/"
+        )
+        assert approve_resp.status_code == 200
+        profile.refresh_from_db()
+        assert profile.status == ResidentProfile.Status.APPROVED
+
+    def test_resident_count_correct_after_three_sequential_joins(self, api_client, community_with_buildings):
+        """Three sequential joins increment resident_count to exactly 3."""
+        building = Building.objects.filter(community=community_with_buildings).first()
+        for i in range(3):
+            u = UserFactory()
+            api_client.force_authenticate(user=u)
+            api_client.post(JOIN_URL, {
+                "invite_code": community_with_buildings.invite_code,
+                "building_id": building.id,
+                "flat_number": f"60{i + 1}",
+                "user_type": ResidentProfile.UserType.TENANT,
+            }, format="json")
+        community_with_buildings.refresh_from_db()
+        assert community_with_buildings.resident_count == 3
+
+    def test_two_sequential_joins_result_in_count_2(self, api_client, community_with_buildings):
+        """Two sequential joins → resident_count == 2 (verifies no off-by-one in the F() update)."""
+        building = Building.objects.filter(community=community_with_buildings).first()
+        for i in range(2):
+            u = UserFactory()
+            api_client.force_authenticate(user=u)
+            api_client.post(JOIN_URL, {
+                "invite_code": community_with_buildings.invite_code,
+                "building_id": building.id,
+                "flat_number": f"70{i + 1}",
+                "user_type": ResidentProfile.UserType.TENANT,
+            }, format="json")
+        community_with_buildings.refresh_from_db()
+        assert community_with_buildings.resident_count == 2

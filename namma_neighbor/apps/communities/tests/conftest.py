@@ -187,6 +187,17 @@ def pending_resident_profile(db, community_with_buildings):
 
 
 @pytest.fixture
+def admin_client(db):
+    from django.test import Client
+
+    from apps.users.models import User
+    user = User.objects.create_superuser(phone='+910000000099', password='adminpass')
+    client = Client()
+    client.force_login(user)
+    return client
+
+
+@pytest.fixture
 def community_admin_token(community_admin):
     from apps.users.serializers import CustomTokenObtainPairSerializer
     refresh = CustomTokenObtainPairSerializer.get_token(community_admin)

@@ -423,6 +423,30 @@ def test_building_inline_renders_on_community_change():
 
 ---
 
+## Implementation Notes (actual build)
+
+### Files created/modified
+- `namma_neighbor/apps/communities/tests/factories.py` — added `BuildingFactory`, `FlatFactory`, `ResidentProfileFactory`; added `slug` to `CommunityFactory`; uses string SubFactory ref `'apps.users.tests.factories.UserFactory'` to avoid circular import
+- `namma_neighbor/apps/communities/tests/conftest.py` — added `admin_client` fixture (creates Django `Client` logged in as superuser with `phone='+910000000099'`)
+- `namma_neighbor/apps/communities/tests/test_views.py` — removed `xfail` from `TestDjangoAdminCommunitySettingsActions`; added `TestIntegrationFlows` class with 3 end-to-end tests
+
+### Deviations from plan
+- All model, serializer, and view test files (`test_models.py`, `test_serializers.py`, `test_views.py`) were already written in prior sections; section-08 consolidated and filled gaps
+- `TestDjangoAdminCommunitySettingsActions` was already in `test_views.py` with `@pytest.mark.xfail`; after section-07 completed the admin registration, the marker was removed
+- The `admin_client` fixture was added to `conftest.py` (not in a separate admin test file) to make it available to `TestDjangoAdminCommunitySettingsActions` in `test_views.py`
+- `force_authenticate(user=None)` must be called before `credentials(HTTP_AUTHORIZATION=...)` in integration tests — DRF's `force_authenticate` takes precedence over `credentials()`
+- Integration test `test_f_expression_no_double_count_on_sequential_joins` was renamed to `test_two_sequential_joins_result_in_count_2` because single-threaded tests cannot verify atomicity; the test still verifies correct F() increment behavior
+- `ResidentProfileFactory.community` is derived via `LazyAttribute` from `flat.building.community` — do not pass `community=` explicitly to this factory
+
+### Final test count
+- 119 tests total, all passing
+- `test_models.py`: 20 tests
+- `test_serializers.py`: 9 tests
+- `test_views.py`: 83 tests
+- `test_admin.py`: 7 tests
+
+---
+
 ## 8. Notes for the Implementer
 
 - All tests use `pytest.mark.django_db` (or `@pytest.mark.django_db` decorator) to enable DB access.
