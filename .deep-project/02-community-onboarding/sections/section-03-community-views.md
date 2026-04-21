@@ -101,9 +101,15 @@ class TestBuildingListView:
 
 ## Implementation
 
-### File to Create / Modify
+### Files Created / Modified
 
-**`apps/communities/views.py`** — add the three view classes described below. Other views will be added to this file in sections 04 and 05.
+- **`apps/communities/views.py`** — three view classes (replaces stub)
+- **`apps/communities/urls.py`** — added register/detail/buildings URL patterns with `app_name = "communities"`
+- **`apps/communities/serializers.py`** — added slug generation with IntegrityError retry in `create()`
+- **`config/urls.py`** — included `apps.communities.urls` at `api/v1/communities/`
+- **`config/settings/base.py`** — added `DEFAULT_THROTTLE_RATES: {anon: 60/minute}`
+- **`apps/communities/tests/conftest.py`** — created with `api_client`, `user`, `community`, `community_with_buildings`, `existing_community` fixtures
+- **`apps/communities/tests/test_views.py`** — 14 tests covering all three views
 
 ### CommunityRegisterView
 
@@ -112,7 +118,7 @@ class TestBuildingListView:
 
 The view orchestrates a multi-step atomic operation:
 
-1. Instantiate and call `CommunityRegistrationSerializer(data=request.data, context={'request': request})`. The serializer's `create()` already wraps Community + Building creation in `transaction.atomic()`. The view must pass `admin_user=request.user` into `serializer.save()` so the serializer can inject it — the admin user must NOT come from the payload.
+1. Instantiate and call `CommunityRegistrationSerializer(data=request.data, context={'request': request})`. The serializer's `create()` wraps Community + Building creation in `transaction.atomic()` with IntegrityError retry for slug/invite_code uniqueness. `admin_user` is taken from `self.context['request'].user` inside the serializer (section 02 design; view calls `serializer.save()` with no kwargs).
 
 2. After the community is saved, create the `UserRole` entry:
    ```python

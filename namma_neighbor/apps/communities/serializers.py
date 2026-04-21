@@ -1,10 +1,10 @@
 import re
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound
 
-from apps.communities.models import Building, Community, Flat, ResidentProfile
+from apps.communities.models import Building, Community, Flat, ResidentProfile, generate_unique_slug
 
 
 class CommunityRegistrationSerializer(serializers.ModelSerializer):
@@ -34,12 +34,22 @@ class CommunityRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         buildings = validated_data.pop('buildings')
         admin_user = self.context['request'].user
-        with transaction.atomic():
-            community = Community.objects.create(admin_user=admin_user, **validated_data)
-            Building.objects.bulk_create([
-                Building(community=community, name=name) for name in buildings
-            ])
-        return community
+        for _ in range(5):
+            slug = generate_unique_slug(validated_data['name'], validated_data.get('city', ''))
+            try:
+                with transaction.atomic():
+                    community = Community.objects.create(
+                        admin_user=admin_user,
+                        slug=slug,
+                        **validated_data,
+                    )
+                    Building.objects.bulk_create([
+                        Building(community=community, name=name) for name in buildings
+                    ])
+                return community
+            except IntegrityError:
+                continue
+        raise serializers.ValidationError("Could not generate a unique community slug after several attempts.")
 
 
 class CommunityDetailSerializer(serializers.ModelSerializer):
