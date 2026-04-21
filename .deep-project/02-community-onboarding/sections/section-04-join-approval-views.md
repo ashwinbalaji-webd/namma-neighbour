@@ -137,9 +137,19 @@ assert "resident" in payload["roles"]
 
 ## Implementation
 
-### File to modify
+### Files Modified
 
-`apps/communities/views.py`
+- `apps/communities/views.py` — added JoinCommunityView, ResidentListView, ResidentApproveView, ResidentRejectView, get_community_or_403 helper
+- `apps/communities/urls.py` — added join/, residents/, residents/<pk>/approve/, residents/<pk>/reject/ URL patterns
+- `apps/communities/tests/conftest.py` — added community_admin, approved_resident, pending_resident, community_with_residents, community_with_mixed_residents, community_with_25_residents, other_community_admin, rejected_resident_user fixtures
+- `apps/communities/tests/test_views.py` — 25 tests covering all four views (73 total)
+
+**Deviations from plan:**
+- Used `rest_framework.exceptions.PermissionDenied` (not Django's) for JSON responses
+- `Flat.get_or_create` moved inside `transaction.atomic()` for concurrent safety
+- `UserRole(role='resident')` created via `get_or_create` in JoinCommunityView (plan omitted this step but needed for JWT claims)
+
+### File to modify
 
 This file already exists (or will exist after section-03 is done). Add the four views to it — do not create a separate file.
 
