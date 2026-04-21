@@ -278,6 +278,27 @@ Create the following files with minimal content so the app can be imported clean
 
 ---
 
+## 10. Implementation Notes (Actual)
+
+**Deviations from plan:**
+
+- `VendorCommunity` inherits `TimestampedModel` (not `models.Model`) — adds `created_at`/`updated_at` for approval audit trail.
+- `max_length` on `TextChoices` fields derived dynamically: `max(len(v) for v in Enum.values)` instead of hardcoded values.
+- `razorpay_onboarding_step max_length=50` (plan: 20) — safer for future step names.
+- `fssai_authorized_categories` does not have `blank=True` — empty list (`[]`) is valid via `default=list`.
+- FSSAI validator tests call the validator directly rather than via `full_clean()` to avoid FK exclusion noise.
+- `communities` migration `0003_alter_community_invite_code.py` auto-generated as side-effect (adds `db_index=True` to `invite_code`).
+- App scaffold (`apps.py`, stub files) already existed from project setup; only `models.py`, `services/`, tests, and migration were created.
+
+**Files created:**
+- `apps/vendors/models.py` — full implementation
+- `apps/vendors/services/__init__.py`, `services/fssai.py`, `services/razorpay.py` — stubs
+- `apps/vendors/tests/factories.py`, `conftest.py`, `test_models.py`, `test_views.py`, `test_tasks.py`, `test_services.py`
+- `apps/vendors/migrations/__init__.py`, `migrations/0001_initial.py`
+- `apps/communities/migrations/0003_alter_community_invite_code.py` (auto-generated side-effect)
+
+**Test count:** 9 tests, all passing.
+
 ## 9. Verification
 
 After completing this section, the following must pass:
