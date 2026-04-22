@@ -243,13 +243,26 @@ These are assumed to exist from split 01 but should be verified before running t
 
 ## Checklist for Implementation
 
-1. Create `apps/vendors/services/__init__.py` (empty).
-2. Create `apps/vendors/services/razorpay.py` with `RazorpayClient`.
-3. Implement `__init__` to read `settings.RAZORPAY_KEY_ID` and `settings.RAZORPAY_KEY_SECRET`.
-4. Implement `_auth()` returning a tuple for `requests` Basic Auth.
-5. Implement `_handle_response()` with the full error translation table.
-6. Implement `create_linked_account()` — POST to `/v2/accounts`, include all mandatory fields, return `response['id']`.
-7. Implement `add_stakeholder()` — POST to `/v2/accounts/{account_id}/stakeholders`, return stakeholder ID from response.
-8. Implement `submit_for_review()` — PATCH to `/v2/accounts/{account_id}`, return None.
-9. Write tests in `apps/vendors/tests/test_services.py` covering all 5 TDD stubs plus the additional error cases listed above.
-10. Run `uv run pytest apps/vendors/tests/test_services.py` — all tests must pass before marking this section complete.
+1. Create `apps/vendors/services/__init__.py` (empty). — already existed from section-03
+2. Create `apps/vendors/services/razorpay.py` with `RazorpayClient`. — DONE
+3. Implement `__init__` to read `settings.RAZORPAY_KEY_ID` and `settings.RAZORPAY_KEY_SECRET`. — DONE
+4. Implement `_auth()` returning a tuple for `requests` Basic Auth. — DONE
+5. Implement `_handle_response()` with the full error translation table. — DONE; also extracts `error.description` from Razorpay JSON for actionable logs
+6. Implement `create_linked_account()` — POST to `/v2/accounts`, include all mandatory fields, return `response['id']`. — DONE; email placeholder uses `.example` TLD (RFC 2606)
+7. Implement `add_stakeholder()` — POST to `/v2/accounts/{account_id}/stakeholders`, return stakeholder ID from response. — DONE; added required `phone_country_code='IN'` and `relationship={'director': True}`
+8. Implement `submit_for_review()` — PATCH to `/v2/accounts/{account_id}`, return None. — DONE; payload is `{"tnc_accepted": True}` (correct Razorpay Route API trigger)
+9. Write tests in `apps/vendors/tests/test_services.py` covering all 5 TDD stubs plus the additional error cases listed above. — DONE; 20 tests total
+10. Run `uv run pytest apps/vendors/tests/test_services.py` — all tests must pass before marking this section complete. — DONE; 20/20 passed
+
+## Actual Files Created/Modified
+
+- `namma_neighbor/apps/vendors/services/razorpay.py` — RazorpayClient implementation
+- `namma_neighbor/apps/vendors/tests/test_services.py` — 20 tests covering all three methods
+
+## Deviations from Plan
+
+- `_handle_response` extracts error detail from Razorpay JSON body for better diagnostics
+- `add_stakeholder` payload includes `phone_country_code` and `relationship` fields (required by Razorpay, not mentioned in plan)
+- `submit_for_review` uses `{"tnc_accepted": True}` not `{"profile": {"uses_razorpay": True}}`
+- Email placeholder uses `.example` TLD instead of project-specific domain
+- 20 tests (plan listed 13) — added body assertion + timeout tests for `add_stakeholder`/`submit_for_review`
