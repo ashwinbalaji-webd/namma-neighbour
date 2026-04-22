@@ -197,8 +197,22 @@ No settings changes are needed for this section. The `custom_exception_handler` 
 
 ## Checklist
 
-- [ ] `apps/core/permissions.py`: append `IsVendorOwner` with `has_object_permission` comparing `obj.user_id` to `request.user.id`
-- [ ] `apps/core/exceptions.py`: append `ExternalAPIError`, `TransientAPIError`, `PermanentAPIError`, `RazorpayError`, `FSSAIVerificationError`
-- [ ] `apps/core/tests/test_permissions.py`: unit tests for `has_object_permission` True/False; integration test for 403 on document upload (defer if section 07 not yet implemented)
-- [ ] `apps/core/tests/test_exceptions.py`: serialization test via `custom_exception_handler`; subclass assertion; HTTP status code assertions for `FSSAIVerificationError` and `RazorpayError`
-- [ ] Verify `uv run pytest apps/core/tests/test_permissions.py apps/core/tests/test_exceptions.py` passes
+- [x] `apps/core/permissions.py`: append `IsVendorOwner` with `has_object_permission` comparing `obj.user_id` to `request.user.id`
+- [x] `apps/core/exceptions.py`: append `ExternalAPIError`, `TransientAPIError`, `PermanentAPIError`, `RazorpayError`, `FSSAIVerificationError`
+- [x] `apps/core/tests/test_permissions.py`: unit tests for `has_object_permission` True/False; integration test `test_document_upload_returns_403_for_non_owner` added as `@pytest.mark.skip` (deferred to section-07)
+- [x] `apps/core/tests/test_exceptions.py`: serialization test with explicit `error`/`detail` value assertions; subclass tests for all hierarchy levels; HTTP status code assertions for `FSSAIVerificationError` and `RazorpayError`
+- [x] Verify `uv run pytest apps/core/tests/test_permissions.py apps/core/tests/test_exceptions.py` passes (26 passed, 1 skipped)
+
+## Actual Implementation Notes
+
+**Deviations from plan:**
+- `APIException` import was already present at the top of `exceptions.py` (from split 01); no duplicate import needed.
+- `custom_exception_handler` fallback changed from `'error'` to `getattr(exc, 'default_code', 'error')` so that custom APIException subclasses emit their `default_code` in the `error` field.
+- Integration test for 403 on document upload deferred with `@pytest.mark.skip(reason="Deferred: depends on section-07 document upload view")`.
+
+**Extra tests added (not in original plan):**
+- `test_permanent_api_error_is_subclass_of_external`
+- `test_razorpay_error_is_subclass_of_permanent`
+- `test_fssai_error_is_subclass_of_permanent`
+
+**Final test count:** 26 passed, 1 skipped (test_document_upload_returns_403_for_non_owner)

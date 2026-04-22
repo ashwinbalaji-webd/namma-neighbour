@@ -31,3 +31,15 @@ class IsPlatformAdmin(BasePermission):
             return False
         roles = request.auth.payload.get('roles', [])
         return 'platform_admin' in roles
+
+
+class IsVendorOwner(BasePermission):
+    """Object-level permission: request.user must be the Vendor's owning user.
+
+    Views must call self.check_object_permissions(request, vendor) explicitly
+    after fetching the Vendor by vendor_id. Still requires IsAuthenticated at
+    the view level so unauthenticated requests are rejected before this runs.
+    """
+
+    def has_object_permission(self, request, view, obj) -> bool:
+        return obj.user_id == request.user.id

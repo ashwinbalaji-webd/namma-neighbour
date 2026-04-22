@@ -3,7 +3,11 @@ from rest_framework.exceptions import (
     ValidationError, PermissionDenied, NotAuthenticated,
     AuthenticationFailed, NotFound, MethodNotAllowed
 )
-from apps.core.exceptions import custom_exception_handler
+from apps.core.exceptions import (
+    custom_exception_handler,
+    ExternalAPIError, TransientAPIError, PermanentAPIError,
+    RazorpayError, FSSAIVerificationError,
+)
 
 
 def test_validation_error_format():
@@ -80,3 +84,41 @@ def test_non_drf_exception_returns_none():
     exc = Exception("Generic error")
     response = custom_exception_handler(exc, {})
     assert response is None
+
+
+# --- ExternalAPIError hierarchy ---
+
+def test_external_api_error_serializes_via_custom_handler():
+    exc = ExternalAPIError("upstream failure")
+    response = custom_exception_handler(exc, {})
+    assert response is not None
+    assert response.status_code == 503
+    assert response.data["error"] == "external_api_error"
+    assert response.data["detail"] == "upstream failure"
+
+
+def test_transient_api_error_is_subclass_of_external():
+    assert issubclass(TransientAPIError, ExternalAPIError)
+
+
+def test_permanent_api_error_is_subclass_of_external():
+    assert issubclass(PermanentAPIError, ExternalAPIError)
+    assert PermanentAPIError().status_code == 503
+
+
+def test_razorpay_error_is_subclass_of_permanent():
+    assert issubclass(RazorpayError, PermanentAPIError)
+
+
+def test_fssai_error_is_subclass_of_permanent():
+    assert issubclass(FSSAIVerificationError, PermanentAPIError)
+
+
+def test_fssai_verification_error_returns_400():
+    exc = FSSAIVerificationError()
+    assert exc.status_code == 400
+
+
+def test_razorpay_error_returns_402():
+    exc = RazorpayError()
+    assert exc.status_code == 402

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import Mock
 from apps.core.permissions import (
     IsResidentOfCommunity, IsVendorOfCommunity,
-    IsCommunityAdmin, IsPlatformAdmin
+    IsCommunityAdmin, IsPlatformAdmin, IsVendorOwner
 )
 
 
@@ -88,3 +88,33 @@ def test_all_permissions_false_for_unauthenticated():
     ]
     for perm in perms:
         assert perm.has_permission(request, None) is False
+
+
+# --- IsVendorOwner ---
+
+def test_is_vendor_owner_true_when_user_matches():
+    request = Mock()
+    request.user = Mock()
+    request.user.id = 1
+    vendor = Mock()
+    vendor.user_id = 1
+    perm = IsVendorOwner()
+    assert perm.has_object_permission(request, None, vendor) is True
+
+
+def test_is_vendor_owner_false_when_user_does_not_match():
+    request = Mock()
+    request.user = Mock()
+    request.user.id = 1
+    vendor = Mock()
+    vendor.user_id = 2
+    perm = IsVendorOwner()
+    assert perm.has_object_permission(request, None, vendor) is False
+
+
+@pytest.mark.skip(reason="Deferred: depends on section-07 document upload view")
+@pytest.mark.django_db
+def test_document_upload_returns_403_for_non_owner():
+    # TODO (section-07): POST /api/v1/vendors/{id}/documents/ as a non-owner
+    # should return HTTP 403. Use APIClient + force_authenticate(non_owner).
+    pass
