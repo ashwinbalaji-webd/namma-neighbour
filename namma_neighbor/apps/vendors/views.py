@@ -1,20 +1,29 @@
 import re
 
+from django.db import transaction
+from django.db.models import F
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import generics
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.permissions import IsVendorOwner
+from apps.core.permissions import IsCommunityAdmin, IsResidentOfCommunity, IsVendorOwner
+from apps.users.models import UserRole
 from apps.vendors.models import FSSAIStatus, Vendor, VendorCommunity, VendorCommunityStatus
 from apps.vendors.serializers import (
     DocumentUploadSerializer,
+    PendingVendorSerializer,
+    VendorPublicProfileSerializer,
     VendorRegistrationSerializer,
     VendorStatusSerializer,
 )
 from apps.vendors.services.storage import upload_vendor_document
-from apps.vendors.tasks import verify_fssai
+from apps.vendors.tasks import create_razorpay_linked_account, verify_fssai
 
 _FSSAI_NUMBER_RE = re.compile(r"^\d{14}$")
 
@@ -169,4 +178,185 @@ class VendorStatusView(APIView):
         vendor = get_object_or_404(Vendor, pk=vendor_id)
         self.check_object_permissions(request, vendor)
         serializer = VendorStatusSerializer(vendor)
+        return Response(serializer.data)
+
+
+# ─── Admin Workflow Views ──────────────────────────────────────────────────────
+
+class _AdminPagination(PageNumberPagination):
+    page_size = 10
+
+
+class CommunityPendingVendorsView(generics.ListAPIView):
+    """
+    Returns a paginated list of VendorCommunity records with status=pending_review
+    for a given community. Used by community admins to review vendor applications.
+
+    Each entry includes presigned S3 document URLs (TTL=3600s) and an fssai_warning
+    flag. Presigned URL generation is CPU-bound (HMAC, no network) and safe for
+    synchronous request handling at page_size=10.
+
+    Pagination: page_size=10 (PageNumberPagination).
+
+    Returns:
+        200: paginated list of PendingVendorSerializer responses
+        403: not a community admin
+        404: community not found
+    """
+    serializer_class = PendingVendorSerializer
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
+    pagination_class = _AdminPagination
+
+    def get_queryset(self):
+        from apps.communities.models import Community
+        slug = self.kwargs["slug"]
+        community = get_object_or_404(Community, slug=slug)
+        if not UserRole.objects.filter(
+            user=self.request.user, role="community_admin", community=community
+        ).exists():
+            raise PermissionDenied()
+        return VendorCommunity.objects.filter(
+            community=community, status=VendorCommunityStatus.PENDING_REVIEW
+        ).select_related("vendor").order_by("created_at")
+
+
+class VendorApproveView(APIView):
+    """
+    Approves a vendor's application for a specific community.
+
+    Business logic:
+    1. Resolve community_slug → Community; 404 if not found.
+    2. Cross-check: verify request.user is admin of the resolved community (not just any community).
+       Return 403 if the community_slug resolves to a community the user does not admin.
+    3. Retrieve VendorCommunity for (vendor, community) where status=pending_review. 404 otherwise.
+    4. FSSAI guard: if vendor.fssai_status == 'failed' and override_fssai_warning != True, return 400.
+    5. Atomic update:
+       a. VendorCommunity.status → approved; set approved_by=request.user, approved_at=now()
+       b. community.vendor_count incremented atomically (F() expression)
+       c. UserRole.objects.get_or_create(user=vendor.user, role='vendor', community=community)
+       d. If vendor.razorpay_onboarding_step == '': enqueue create_razorpay_linked_account.delay(vendor.pk)
+
+    Returns:
+        200: {status: 'approved'}
+        400: FSSAI guard triggered (fssai_status='failed', no override)
+        403: not admin of this community
+        404: community not found, or VendorCommunity not in pending_review
+    """
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
+
+    def post(self, request, vendor_id):
+        from apps.communities.models import Community
+        community_slug = request.data.get("community_slug", "")
+        community = get_object_or_404(Community, slug=community_slug)
+
+        if not UserRole.objects.filter(
+            user=request.user, role="community_admin", community=community
+        ).exists():
+            raise PermissionDenied()
+
+        vendor = get_object_or_404(Vendor, pk=vendor_id)
+        vc = get_object_or_404(
+            VendorCommunity,
+            vendor=vendor,
+            community=community,
+            status=VendorCommunityStatus.PENDING_REVIEW,
+        )
+
+        override_fssai = request.data.get("override_fssai_warning", False)
+        if vendor.fssai_status == FSSAIStatus.FAILED and not override_fssai:
+            return Response(
+                {"detail": "FSSAI verification failed. Set override_fssai_warning=true to proceed."},
+                status=400,
+            )
+
+        with transaction.atomic():
+            VendorCommunity.objects.filter(pk=vc.pk).update(
+                status=VendorCommunityStatus.APPROVED,
+                approved_by_id=request.user.pk,
+                approved_at=timezone.now(),
+            )
+            Community.objects.filter(pk=community.pk).update(vendor_count=F("vendor_count") + 1)
+            UserRole.objects.get_or_create(
+                user=vendor.user, role="vendor", community=community
+            )
+            vendor.refresh_from_db(fields=["razorpay_onboarding_step"])
+            if vendor.razorpay_onboarding_step == "":
+                transaction.on_commit(lambda: create_razorpay_linked_account.delay(vendor.pk))
+
+        # TODO: enqueue SMS notification to vendor (split 05)
+        return Response({"status": VendorCommunityStatus.APPROVED})
+
+
+class VendorRejectView(APIView):
+    """
+    Rejects a vendor's application for a specific community.
+
+    Business logic:
+    1. Resolve community_slug → Community; 404 if not found.
+    2. Cross-check: verify request.user is admin of the resolved community. 403 if not.
+    3. Retrieve VendorCommunity for (vendor, community). Records in pending_review OR
+       approved can be rejected. 404 if the record does not exist.
+    4. Capture previous_status = vc.status before updating.
+    5. Atomic update: status → rejected; rejection_reason = reason.
+    6. If previous_status == 'approved': decrement community.vendor_count atomically.
+       (vendor_count represents current active/approved vendors, not lifetime count.)
+
+    The vendor can update their documents and re-submit after rejection. The same
+    VendorCommunity record is reused; VendorSubmitView resets status to pending_review.
+
+    Returns:
+        200: {status: 'rejected'}
+        403: not admin of this community
+        404: community not found, or VendorCommunity not found
+    """
+    permission_classes = [IsAuthenticated, IsCommunityAdmin]
+
+    def post(self, request, vendor_id):
+        from apps.communities.models import Community
+        community_slug = request.data.get("community_slug", "")
+        community = get_object_or_404(Community, slug=community_slug)
+
+        if not UserRole.objects.filter(
+            user=request.user, role="community_admin", community=community
+        ).exists():
+            raise PermissionDenied()
+
+        vendor = get_object_or_404(Vendor, pk=vendor_id)
+        vc = get_object_or_404(VendorCommunity, vendor=vendor, community=community)
+
+        previous_status = vc.status
+        reason = request.data.get("reason", "")
+
+        with transaction.atomic():
+            VendorCommunity.objects.filter(pk=vc.pk).update(
+                status=VendorCommunityStatus.REJECTED,
+                rejection_reason=reason,
+            )
+            if previous_status == VendorCommunityStatus.APPROVED:
+                Community.objects.filter(pk=community.pk).update(
+                    vendor_count=F("vendor_count") - 1
+                )
+
+        # TODO: enqueue SMS notification to vendor with rejection_reason (split 05)
+        return Response({"status": VendorCommunityStatus.REJECTED})
+
+
+class VendorPublicProfileView(APIView):
+    """
+    Returns a vendor's public-facing profile for residents to view.
+
+    Exposes only display-safe fields: vendor_id, display_name, bio,
+    average_rating, is_new_seller. No KYB, bank, S3 key, FSSAI license
+    number, or Razorpay data is included.
+
+    Returns:
+        200: VendorPublicProfileSerializer response
+        403: not a resident of this community
+        404: vendor not found
+    """
+    permission_classes = [IsAuthenticated, IsResidentOfCommunity]
+
+    def get(self, request, vendor_id):
+        vendor = get_object_or_404(Vendor, pk=vendor_id)
+        serializer = VendorPublicProfileSerializer(vendor)
         return Response(serializer.data)

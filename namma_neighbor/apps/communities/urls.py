@@ -11,12 +11,14 @@ from apps.communities.views import (
     ResidentListView,
     ResidentRejectView,
 )
+from apps.vendors.views import CommunityPendingVendorsView
 
 app_name = "communities"
 
 urlpatterns = [
     path("register/", CommunityRegisterView.as_view(), name="register"),
     path("join/", JoinCommunityView.as_view(), name="join"),
+    path("<slug:slug>/vendors/pending/", CommunityPendingVendorsView.as_view(), name="community-pending-vendors"),
     path("<slug:slug>/", CommunityDetailView.as_view(), name="detail"),
     path("<slug:slug>/buildings/", BuildingListView.as_view(), name="buildings"),
     path("<slug:slug>/residents/", ResidentListView.as_view(), name="resident-list"),

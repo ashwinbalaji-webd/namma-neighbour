@@ -480,10 +480,30 @@ Note: this view does **not** use `IsVendorOwner` — any authenticated resident 
 
 ## Checklist
 
-- [ ] Write all test stubs in `apps/vendors/tests/test_views.py` (admin workflow section) before implementing views
-- [ ] Append `CommunityPendingVendorsView` to `apps/vendors/views.py` with `select_related('vendor')` queryset and `page_size=10` pagination
-- [ ] Append `VendorApproveView` with: community cross-check, FSSAI guard, `transaction.atomic()` block, `F()` increment, `UserRole.get_or_create`, conditional `create_razorpay_linked_account.delay`
-- [ ] Append `VendorRejectView` with: community cross-check, `previous_status` capture, `F()` decrement only if was approved
-- [ ] Append `VendorPublicProfileView` using `IsResidentOfCommunity` and `VendorPublicProfileSerializer`
-- [ ] Mock `create_razorpay_linked_account.delay` in all approve view tests using `unittest.mock.patch`
-- [ ] Verify `uv run pytest apps/vendors/tests/test_views.py` passes for the admin workflow test class
+- [x] Write all test stubs in `apps/vendors/tests/test_views.py` (admin workflow section) before implementing views
+- [x] Append `CommunityPendingVendorsView` to `apps/vendors/views.py` with `select_related('vendor')` queryset and `page_size=10` pagination
+- [x] Append `VendorApproveView` with: community cross-check, FSSAI guard, `transaction.atomic()` block, `F()` increment, `UserRole.get_or_create`, conditional `create_razorpay_linked_account` via `transaction.on_commit`
+- [x] Append `VendorRejectView` with: community cross-check, `previous_status` capture, `F()` decrement only if was approved
+- [x] Append `VendorPublicProfileView` using `IsResidentOfCommunity` and `VendorPublicProfileSerializer`
+- [x] Mock `create_razorpay_linked_account.delay` in all approve view tests using `unittest.mock.patch`
+- [x] Verify `uv run pytest apps/vendors/tests/test_views.py` passes for the admin workflow test class
+
+## Implementation Notes (Deviations from Plan)
+
+### transaction.on_commit() for Celery task
+The plan spec said to call `create_razorpay_linked_account.delay()` inside `transaction.atomic()`. The implementation uses `transaction.on_commit(lambda: create_razorpay_linked_account.delay(vendor.pk))` instead, which is the correct Django+Celery pattern — ensures the task fires only after the DB transaction commits, preventing the worker from reading uncommitted data. Tests mock `apps.vendors.views.transaction.on_commit` with `side_effect=lambda fn: fn()` to execute callbacks synchronously.
+
+### URL wiring done alongside views (not deferred to section-12)
+The pending vendors URL `GET /api/v1/communities/{slug}/vendors/pending/` was added to `apps/communities/urls.py`. The three vendor-action URLs (approve, reject, profile) were added to `apps/vendors/urls.py`. This was necessary for the tests to resolve.
+
+### Additional tests added beyond spec
+Added: 403 test for non-admin JWT role on approve/reject views; 404 tests for unknown community slug and vendor_id; response body `status` field assertions; explicit `is_food_seller=False` in resubmit test.
+
+### Actual files created/modified
+- `namma_neighbor/apps/vendors/tasks.py` — added `create_razorpay_linked_account` stub
+- `namma_neighbor/apps/vendors/views.py` — extended with 4 admin views + updated imports
+- `namma_neighbor/apps/vendors/urls.py` — added 3 patterns (approve, reject, profile)
+- `namma_neighbor/apps/communities/urls.py` — added pending vendors pattern
+- `namma_neighbor/apps/vendors/tests/test_views.py` — appended 27 admin workflow tests
+
+### Test count: 57 total (27 new admin workflow tests, 30 existing)

@@ -13,3 +13,8 @@ def recheck_fssai_expiry() -> None:
 @shared_task
 def verify_fssai(vendor_pk: int) -> None:
     logger.warning("verify_fssai: not yet implemented (vendor_pk=%s)", vendor_pk)
+
+
+@shared_task
+def create_razorpay_linked_account(vendor_pk: int) -> None:
+    logger.warning("create_razorpay_linked_account: not yet implemented (vendor_pk=%s)", vendor_pk)
