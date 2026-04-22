@@ -331,9 +331,16 @@ The view calling `PendingVendorSerializer` must use `select_related('vendor')` o
 
 ---
 
+## Actual Implementation Notes
+
+- **VendorRegistrationSerializer**: `is_food_seller` update moved AFTER duplicate-community check to avoid rollback inconsistency. `IntegrityError` caught at `VendorCommunity.create()` and converted to `ValidationError(code='duplicate_community')` for race-condition safety. `save()` guard added to prevent misuse with `instance=`. `to_representation` uses `vendor_community.status` (not hardcoded).
+- **gst_cert**: Optional for MVP; not included in `VendorStatusSerializer.get_missing_documents()`.
+- **Test file**: `apps/vendors/tests/test_serializers.py` (20 tests, direct serializer unit tests, not view integration tests).
+- **test_views.py**: Kept as stub placeholder for sections 07/08.
+
 ## Checklist
 
-- [ ] Create `apps/vendors/serializers.py`
+- [x] Create `apps/vendors/serializers.py`
 - [ ] Implement `VendorRegistrationSerializer` with atomic creation, `community_slug` resolution, `is_food_seller` assignment, `required_documents` output
 - [ ] Implement `DocumentUploadSerializer` with `validate_file()` calling `validate_document_file()`
 - [ ] Implement `VendorStatusSerializer` with `get_missing_documents()` and `get_community_statuses()`
