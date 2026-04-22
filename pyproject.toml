@@ -19,6 +19,7 @@ dependencies = [
     "psycopg2-binary",
     "Pillow",
     "requests",
+    "filetype>=1.2",
 ]
 
 [dependency-groups]

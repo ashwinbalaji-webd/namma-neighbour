@@ -165,24 +165,35 @@ The function should not catch exceptions — errors propagate to the view layer 
 
 ---
 
-## File Paths Summary
+## File Paths Summary (Actual)
 
 | Action | Path |
 |--------|------|
-| Create | `apps/vendors/services/__init__.py` |
-| Create | `apps/vendors/services/storage.py` |
-| Modify (add function) | `apps/core/storage.py` |
-| Create/modify | `apps/vendors/tests/test_services.py` (or `test_storage.py`) |
+| Already existed | `apps/vendors/services/__init__.py` |
+| Created | `apps/vendors/services/storage.py` |
+| Modified (added function + imports) | `apps/core/storage.py` |
+| Created | `apps/vendors/tests/test_storage.py` |
+| Modified (AWS_STORAGE_BUCKET_NAME as explicit setting) | `config/settings/base.py` |
+
+## Deviations from Plan
+
+- **S3 key prefix**: Key constructed as `vendors/{pk}/{document_type}/{uuid}.{ext}` (NOT `documents/vendors/...`) because `DocumentStorage.location = "documents"` prepends the prefix automatically. `storage.save()` returns the full `documents/vendors/...` key.
+- **document_type validation**: Added early `ValueError` guard before S3 upload to prevent orphaned S3 objects.
+- **file.seek(0)**: Added defensive seek at start of `upload_vendor_document`.
+- **generate_document_presigned_url**: Added prefix guard — raises `ValueError` for keys not starting with `documents/vendors/`.
+- **AWS_STORAGE_BUCKET_NAME**: Added as explicit Django setting in `base.py` (accessible via `settings.AWS_STORAGE_BUCKET_NAME`).
+- **Test file**: Created as `test_storage.py` (separate from existing `test_services.py` which covers Razorpay).
+
+## Final Test Count: 17 tests in `apps/vendors/tests/test_storage.py`
 
 ---
 
 ## Package Dependencies
 
-Add to the project's dependency file (e.g., `pyproject.toml` or `requirements/base.txt`):
+Added to `pyproject.toml`:
 
 ```
-filetype>=1.2
-boto3>=1.28
+filetype>=1.2  (boto3 was already present)
 ```
 
 `filetype` is pure Python and requires no system libraries. If `python-magic` is preferred instead, it requires `libmagic` to be installed system-wide — `filetype` is simpler to deploy and is the recommended choice.
