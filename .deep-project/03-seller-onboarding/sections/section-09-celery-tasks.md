@@ -8,9 +8,11 @@ The app doesn't exist yet — this is a greenfield implementation. I now have al
 
 This section implements the four asynchronous Celery tasks that drive background processing in the seller-onboarding split. These tasks handle FSSAI license verification, Razorpay linked-account onboarding, daily expiry rechecks, and automated vendor delisting.
 
-**File to create:** `/var/www/html/MadGirlfriend/namma-neighbour/apps/vendors/tasks.py`
+**File created:** `namma_neighbor/apps/vendors/tasks.py`
 
-**Test file to create:** `/var/www/html/MadGirlfriend/namma-neighbour/apps/vendors/tests/test_tasks.py`
+**Test file created:** `namma_neighbor/apps/vendors/tests/test_tasks.py`
+
+**Total tests:** 32 (30 planned + 2 added in code review)
 
 ---
 
@@ -421,3 +423,17 @@ The beat schedule entries belong in `config/settings/base.py` under `CELERY_BEAT
 **`fssai_expiry_warning_sent=False` reset** on re-verification ensures the 30-day warning fires again on the vendor's next renewal cycle, not just the first one.
 
 **No `CELERY_TASK_ALWAYS_EAGER`** — tests call task functions directly and mock the service classes. This matches how real Celery behaves and avoids the deprecated eager mode.
+
+---
+
+## Deviations From Plan (code review fixes applied)
+
+- **`verify_fssai` max-retries handling:** Plan called for an `on_failure` callback. Implemented inline: when `self.request.retries >= self.max_retries`, logs an error and returns (vendor stays `pending`). Same observable behavior, simpler code.
+
+- **`create_razorpay_linked_account`:** Added `acks_late=True` (consistent with `verify_fssai`). Terminal guard extended to `('submitted', 'rejected')`. On `RazorpayError`: now sets both `razorpay_account_status='rejected'` AND `razorpay_onboarding_step='rejected'` to keep fields consistent and let the terminal guard prevent spurious retries.
+
+- **`recheck_fssai_expiry` Pass 2:** Filter changed from `fssai_expiry_date__lt=today` to `fssai_expiry_date__lte=today` so vendors whose license expires exactly today are caught (off-by-one fix).
+
+- **`auto_delist_missed_windows`:** Added `.iterator(chunk_size=50)` to avoid loading all rows into memory. Per-row atomic filter extended to re-evaluate `missed_window_count__gte=F('delist_threshold')` at update time, preventing suspension based on stale threshold snapshots.
+
+- **2 tests added:** `test_skips_rejected_vendor` (terminal guard for 'rejected' step) and `test_sets_expired_for_vendor_expiring_today` (Pass 2 `__lte` fix).
