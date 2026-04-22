@@ -178,13 +178,28 @@ No connection pooling or singleton pattern is required at this stage.
 
 ## Acceptance Checklist
 
-- [ ] `apps/vendors/services/__init__.py` exists (empty)
-- [ ] `apps/vendors/services/fssai.py` exists with `SurepassFSSAIClient` class
-- [ ] `verify_fssai` returns normalized dict with correct Python types (`date`, `list`)
-- [ ] `check_expiry` hits `/fssai/fssai-expiry-check`, not `/fssai-full-details`
-- [ ] HTTP 400/404 raise `FSSAIVerificationError`
-- [ ] HTTP 429/5xx raise `TransientAPIError`
-- [ ] `requests.Timeout` raises `TransientAPIError`
-- [ ] All requests use `timeout=10`
-- [ ] All requests use `Authorization: Bearer <SUREPASS_TOKEN>` header
-- [ ] All 8 tests pass with `uv run pytest apps/vendors/tests/test_fssai_service.py`
+- [x] `apps/vendors/services/__init__.py` exists (empty, created in section-01)
+- [x] `apps/vendors/services/fssai.py` exists with `SurepassFSSAIClient` class
+- [x] `verify_fssai` returns normalized dict with correct Python types (`date`, `list`)
+- [x] `check_expiry` hits `/fssai/fssai-expiry-check`, not `/fssai-full-details`
+- [x] HTTP 400/404 raise `FSSAIVerificationError`
+- [x] HTTP 429/5xx raise `TransientAPIError`
+- [x] `requests.Timeout` raises `TransientAPIError`
+- [x] `requests.ConnectionError` raises `TransientAPIError`
+- [x] All requests use `timeout=10`
+- [x] All requests use `Authorization: Bearer <SUREPASS_TOKEN>` header
+- [x] 9 tests pass with `uv run pytest apps/vendors/tests/test_fssai_service.py`
+
+## Actual Implementation Notes
+
+**Deviations from plan:**
+- `SUREPASS_TOKEN = 'test-surepass-token'` added to `config/settings/test.py` (section-13 adds it to base.py with env var).
+- Private `_post(endpoint, license_number)` helper extracted to eliminate duplicate try/except + _raise_for_status + JSON patterns.
+- JSON normalization wrapped in try/except (KeyError, TypeError, ValueError) → FSSAIVerificationError for malformed API responses.
+- Top-level `success` boolean checked in `_post()` — HTTP 200 with `success=false` raises FSSAIVerificationError.
+- `_raise_for_status` has a fallback `status >= 400 → TransientAPIError` for unlisted codes (401, 403, 422).
+- `call_args.args[0]` used in URL assertion test (Python 3.8+ named attribute, more robust than `call_args[0][0]`).
+
+**Extra test added:** `test_verify_fssai_raises_transient_on_connection_error` (plan table listed it, no test existed).
+
+**Final test count:** 9 passed

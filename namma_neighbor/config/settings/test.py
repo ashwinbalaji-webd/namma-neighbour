@@ -19,3 +19,10 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
     }
 }
+
+SUREPASS_TOKEN = 'test-surepass-token'
+RAZORPAY_KEY_ID = 'test-key-id'
+RAZORPAY_KEY_SECRET = 'test-key-secret'
+RAZORPAY_WEBHOOK_SECRET = 'test-webhook-secret'
+AWS_ACCESS_KEY_ID = 'test-access-key'
+AWS_SECRET_ACCESS_KEY = 'test-secret-key'
