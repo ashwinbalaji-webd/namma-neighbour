@@ -150,21 +150,41 @@ class VendorCommunityAdmin(admin.ModelAdmin):
 - `fssai_number` is intentionally **not** in `readonly_fields` — operators may need to correct a mistyped number before re-triggering the `verify_fssai` task.
 - `VendorCommunity.can_delete = False` in the inline enforces the invariant that community membership records are never silently deleted; status transitions (`rejected`, `suspended`) are the correct removal mechanism.
 
+## Actual Implementation Notes
+
+**Files created:**
+- `namma_neighbor/apps/vendors/admin.py`
+- `namma_neighbor/apps/vendors/tests/test_admin.py`
+
+**Deviations from plan (post code review):**
+
+- `VendorCommunityInline` gained `show_change_link = True` for operator navigation.
+- `VendorAdmin.readonly_fields` extended beyond plan to include S3 key fields (`govt_id_s3_key`, `bank_proof_s3_key`, `fssai_cert_s3_key`, `gst_cert_s3_key`) and `bank_account_verified` — all system-managed, not operator-editable.
+- `VendorCommunityAdmin.readonly_fields` includes `status` (in addition to `approved_by`, `approved_at`) to prevent operators from bypassing the API approval workflow.
+- `VendorCommunityAdmin` gains `ordering = ("-created_at",)` and `list_select_related = ("vendor", "community", "approved_by")` for usability and N+1 prevention.
+- `VendorAdmin` gains `list_select_related = ("user",)`.
+- Test: redundant `db` fixture removed from `test_vendor_search_by_fssai_number` (class-level marker propagates).
+
+**Test results:** 3 passed
+
 ## Summary Checklist
 
-- [ ] `apps/vendors/admin.py` created
-- [ ] `VendorCommunityInline` (TabularInline) with `model = VendorCommunity`, correct `fields`, `readonly_fields`, `extra = 0`, `can_delete = False`
-- [ ] `VendorAdmin` registered with `@admin.register(Vendor)`
-  - [ ] `list_display` includes all 7 columns (including `is_new_seller` property)
-  - [ ] `list_filter` on `fssai_status`, `razorpay_account_status`
-  - [ ] `search_fields` includes `display_name`, `user__phone`, `fssai_number`, `gstin`
-  - [ ] `readonly_fields` includes `fssai_verified_at`, `razorpay_account_id`, `razorpay_onboarding_step`, `created_at`, `updated_at`
-  - [ ] `inlines = [VendorCommunityInline]`
-- [ ] `VendorCommunityAdmin` registered with `@admin.register(VendorCommunity)`
-  - [ ] `list_display` includes all 7 columns
-  - [ ] `list_filter` on `status`, `community`
-  - [ ] `readonly_fields` includes `approved_by`, `approved_at`
-- [ ] `apps/vendors/tests/test_admin.py` created with 3 test stubs
-  - [ ] `test_vendor_admin_is_registered`
-  - [ ] `test_vendor_community_list_display_renders`
-  - [ ] `test_vendor_search_by_fssai_number`
+- [x] `namma_neighbor/apps/vendors/admin.py` created
+- [x] `VendorCommunityInline` (TabularInline) with `model = VendorCommunity`, correct `fields`, `readonly_fields`, `extra = 0`, `can_delete = False`, `show_change_link = True`
+- [x] `VendorAdmin` registered with `@admin.register(Vendor)`
+  - [x] `list_display` includes all 7 columns (including `is_new_seller` property)
+  - [x] `list_filter` on `fssai_status`, `razorpay_account_status`
+  - [x] `search_fields` includes `display_name`, `user__phone`, `fssai_number`, `gstin`
+  - [x] `readonly_fields` includes plan fields + S3 keys + `bank_account_verified`
+  - [x] `inlines = [VendorCommunityInline]`
+  - [x] `list_select_related = ("user",)`
+- [x] `VendorCommunityAdmin` registered with `@admin.register(VendorCommunity)`
+  - [x] `list_display` includes all 7 columns
+  - [x] `list_filter` on `status`, `community`
+  - [x] `readonly_fields` includes `approved_by`, `approved_at`, `status`
+  - [x] `ordering = ("-created_at",)`
+  - [x] `list_select_related = ("vendor", "community", "approved_by")`
+- [x] `namma_neighbor/apps/vendors/tests/test_admin.py` created with 3 tests
+  - [x] `test_vendor_admin_is_registered`
+  - [x] `test_vendor_community_list_display_renders`
+  - [x] `test_vendor_search_by_fssai_number`
