@@ -36,11 +36,22 @@ The `Community` model and `UserRole` model come from split 01 and split 02 respe
 
 ---
 
-## File to Create
+## File Created
 
-**`/var/www/html/MadGirlfriend/namma-neighbour/apps/vendors/tests/test_integration.py`**
+**`namma_neighbor/apps/vendors/tests/test_integration.py`**
 
 This is the only deliverable for this section.
+
+## Deviations from Plan
+
+1. **File path corrected**: Plan listed path without `namma_neighbor/` prefix; actual path is `namma_neighbor/apps/vendors/tests/test_integration.py`.
+2. **No class-level shared state**: Tests implemented as a class `TestMultiCommunityVendorScenarios` with standalone per-test setup rather than fixtures, matching `test_views.py` patterns.
+3. **Patch target**: Used `apps.vendors.views.create_razorpay_linked_account` (established project pattern) rather than `apps.vendors.tasks.create_razorpay_linked_account.delay` as suggested in plan.
+4. **Code review additions**: All `_approve()`/`_reject()` calls assert `response.status_code == 200`; delay assertion uses `assert_called_once_with(vendor.pk)`.
+
+## Final Test Count
+
+5 tests, all passing.
 
 ---
 
