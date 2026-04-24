@@ -27,9 +27,22 @@ Prior to this section the following settings already exist in `config/settings/b
 
 | Path | Action |
 |------|--------|
-| `config/settings/base.py` | Modify — add two new settings; add one beat schedule entry |
-| `.env.example` | Modify — document the two new required variables |
-| `apps/vendors/tests/test_settings.py` | Create — settings/beat-schedule tests |
+| `namma_neighbor/config/settings/base.py` | Modified — added RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET (default=None), SUREPASS_TOKEN (default=None), RAZORPAY_WEBHOOK_SECRET (required); added auto_delist_missed_windows beat entry |
+| `namma_neighbor/config/settings/test.py` | Modified — added os.environ.setdefault('RAZORPAY_WEBHOOK_SECRET', ...) before base import; removed redundant post-import RAZORPAY_WEBHOOK_SECRET assignment |
+| `.env.example` | Modified — documented all four new variables; added REQUIRED comment on RAZORPAY_WEBHOOK_SECRET |
+| `namma_neighbor/apps/vendors/tests/test_settings.py` | Created — 9 tests (7 planned + 2 added for RAZORPAY_KEY_ID/SECRET) |
+| `namma_neighbor/apps/vendors/tasks.py` | Modified (bug fix from code review) — auto_delist_missed_windows queue='default' → queue='kyc' |
+
+## Deviations from Plan
+
+1. **RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET were not in base.py** (plan said they existed from split 01). Added them with `default=None` so startup doesn't fail without them.
+2. **test.py required os.environ.setdefault before base import** — RAZORPAY_WEBHOOK_SECRET (no default) caused ImproperlyConfigured at test startup. Fixed by pre-setting the env var.
+3. **Bug fix in tasks.py** — code review found `auto_delist_missed_windows` had `queue='default'` instead of `queue='kyc'`. Fixed.
+4. **9 tests instead of 7** — added test_razorpay_key_id_setting_exists and test_razorpay_key_secret_setting_exists.
+
+## Final Test Count
+
+9 tests in `apps/vendors/tests/test_settings.py`, all passing.
 
 ---
 

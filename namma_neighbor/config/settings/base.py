@@ -172,6 +172,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=2, minute=0),
         'options': {'queue': 'sms'},
     },
+    'auto_delist_missed_windows': {
+        'task': 'apps.vendors.tasks.auto_delist_missed_windows',
+        'schedule': crontab(hour=6, minute=30),
+        'options': {'queue': 'kyc'},
+    },
 }
 
 LOGGING = {
@@ -211,6 +216,12 @@ LOGGING = {
         },
     },
 }
+
+RAZORPAY_KEY_ID = env('RAZORPAY_KEY_ID', default=None)
+RAZORPAY_KEY_SECRET = env('RAZORPAY_KEY_SECRET', default=None)
+RAZORPAY_WEBHOOK_SECRET = env('RAZORPAY_WEBHOOK_SECRET')
+
+SUREPASS_TOKEN = env('SUREPASS_TOKEN', default=None)
 
 SMS_BACKEND = env('SMS_BACKEND', default='apps.core.sms.backends.console.ConsoleSMSBackend')
 OTP_HMAC_SECRET = env('OTP_HMAC_SECRET', default='dev-hmac-secret')

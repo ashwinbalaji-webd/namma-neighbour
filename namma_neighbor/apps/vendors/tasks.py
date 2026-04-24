@@ -168,7 +168,7 @@ def recheck_fssai_expiry() -> None:
     ).update(fssai_status=FSSAIStatus.EXPIRED)
 
 
-@shared_task(queue='default')
+@shared_task(queue='kyc')
 def auto_delist_missed_windows() -> None:
     """Daily cron: suspend vendors who exceeded missed delivery window threshold.
 
