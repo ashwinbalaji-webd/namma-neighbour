@@ -270,3 +270,23 @@ class CatalogueConfig(AppConfig):
 - `ProductImage.save()` primary-management and `ProductImage.delete()` primary-promotion must execute in the same DB transaction as the underlying record change to avoid a race window where no image is primary.
 - The FSSAI and GSTIN gates in `Product.clean()` are the authoritative validation points at the model layer. The serializer's `validate()` in section 07 duplicates this check at the API layer — both must exist so Django Admin cannot bypass the gates.
 - `DailyInventory` rows are created by split 05 (order placement). This section only defines the schema and the `is_available_today` read path. Do not implement any write logic here.
+
+---
+
+## Implementation Notes (Actual)
+
+**Files created:**
+- `namma_neighbor/apps/catalogue/models.py` — Category, Product, ProductImage, DailyInventory
+- `namma_neighbor/apps/catalogue/migrations/0001_initial.py` — with deps on communities/0003 and vendors/0001
+- `namma_neighbor/apps/catalogue/tests/test_models.py` — 20 tests (15 spec + 5 is_available_today)
+- `namma_neighbor/apps/catalogue/tests/factories.py` — CategoryFactory, ProductFactory, ProductImageFactory, DailyInventoryFactory
+- `namma_neighbor/config/settings/test.py` — added FileSystemStorage override to avoid S3 in tests
+
+**Deviations from plan:**
+- `storage=ProductMediaStorage()` omitted from ImageField (deferred to section-02 which defines the class)
+- `type(day) is not int` used instead of `isinstance` to reject boolean values in delivery_days
+- Entire `ProductImage.save()` wrapped in `transaction.atomic()` (spec only wrapped the sibling-clear path)
+- Entire `ProductImage.delete()` wrapped in `transaction.atomic()` (spec mentioned but did not show wrapping)
+- 5 additional `is_available_today` tests added beyond spec stubs
+
+**Test count:** 20 passed, 0 failed

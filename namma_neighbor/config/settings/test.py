@@ -26,3 +26,12 @@ RAZORPAY_KEY_ID = 'test-key-id'
 RAZORPAY_KEY_SECRET = 'test-key-secret'
 AWS_ACCESS_KEY_ID = 'test-access-key'
 AWS_SECRET_ACCESS_KEY = 'test-secret-key'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
