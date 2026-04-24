@@ -211,3 +211,8 @@ def notify_vendor_suspended(vendor_id: int, community_id: int) -> None:
 @shared_task(queue='notifications')
 def notify_admin_vendor_suspended(community_id: int, vendor_id: int) -> None:
     logger.warning("notify_admin_vendor_suspended: not yet implemented (community_id=%s)", community_id)
+
+
+@shared_task(queue='sms')
+def notify_vendor_account_activated(vendor_id: int) -> None:
+    logger.warning("notify_vendor_account_activated: not yet implemented (vendor_id=%s)", vendor_id)

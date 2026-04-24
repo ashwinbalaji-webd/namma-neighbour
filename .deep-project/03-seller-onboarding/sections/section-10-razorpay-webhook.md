@@ -261,6 +261,23 @@ The test fixtures should set `settings.RAZORPAY_WEBHOOK_SECRET = 'test-secret'` 
 
 ---
 
+## Actual Implementation Notes
+
+**Files created/modified:**
+- `apps/core/views_webhooks.py` — `RazorpayWebhookView` (CSRF-exempt, Django `View`)
+- `apps/core/tests/test_webhooks.py` — 9 tests (4 signature + 5 event handling)
+- `apps/vendors/tasks.py` — added `notify_vendor_account_activated` stub task
+- `config/urls.py` — webhook URL inlined here (section-12 will reorganize into `apps/core/urls_webhooks.py`)
+
+**Deviations from plan:**
+- `apps/core/urls_webhooks.py` was NOT created in this section; the URL is registered inline in `config/urls.py` — section-12 will create the separate file and refactor
+- `notify_vendor_account_activated` stub task added to `vendors/tasks.py` alongside other notification stubs
+- Added `autouse=True` mock fixture in test class to prevent Redis connection attempts
+
+**Tests:** 9 passing
+
+---
+
 ## Key Design Constraints
 
 | Constraint | Detail |
