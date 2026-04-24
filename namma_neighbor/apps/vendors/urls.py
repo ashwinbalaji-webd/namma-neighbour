@@ -10,12 +10,14 @@ from apps.vendors.views import (
     VendorSubmitView,
 )
 
+app_name = "vendors"
+
 urlpatterns = [
-    path("register/", VendorRegistrationView.as_view(), name="vendor-register"),
-    path("<int:vendor_id>/documents/", DocumentUploadView.as_view(), name="vendor-documents"),
-    path("<int:vendor_id>/submit/", VendorSubmitView.as_view(), name="vendor-submit"),
-    path("<int:vendor_id>/status/", VendorStatusView.as_view(), name="vendor-status"),
-    path("<int:vendor_id>/approve/", VendorApproveView.as_view(), name="vendor-approve"),
-    path("<int:vendor_id>/reject/", VendorRejectView.as_view(), name="vendor-reject"),
-    path("<int:vendor_id>/profile/", VendorPublicProfileView.as_view(), name="vendor-profile"),
+    path("vendors/register/", VendorRegistrationView.as_view(), name="register"),
+    path("vendors/<int:vendor_id>/documents/", DocumentUploadView.as_view(), name="documents"),
+    path("vendors/<int:vendor_id>/submit/", VendorSubmitView.as_view(), name="submit"),
+    path("vendors/<int:vendor_id>/status/", VendorStatusView.as_view(), name="status"),
+    path("vendors/<int:vendor_id>/profile/", VendorPublicProfileView.as_view(), name="profile"),
+    path("vendors/<int:vendor_id>/approve/", VendorApproveView.as_view(), name="approve"),
+    path("vendors/<int:vendor_id>/reject/", VendorRejectView.as_view(), name="reject"),
 ]

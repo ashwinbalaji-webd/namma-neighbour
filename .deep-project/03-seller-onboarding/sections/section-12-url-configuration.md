@@ -170,12 +170,26 @@ Key points:
 
 ---
 
+## Actual Implementation Notes
+
+**Files created/modified:**
+- `namma_neighbor/apps/vendors/urls.py` — restructured with `app_name = "vendors"`, full path prefixes, short URL names
+- `namma_neighbor/apps/vendors/tests/test_urls.py` — 9 URL resolution tests (no DB required)
+- `namma_neighbor/apps/core/urls_webhooks.py` — new file with `app_name = "webhooks"`, Razorpay webhook URL
+- `namma_neighbor/config/urls.py` — vendor include changed to `api/v1/`, webhook moved to `urls_webhooks.py` include
+- `namma_neighbor/apps/communities/urls.py` — `CommunityPendingVendorsView` moved here (was briefly in vendors/urls.py)
+
+**Deviation from plan (post code review):**
+- `communities/<slug>/vendors/pending/` is registered in `communities/urls.py` (not `vendors/urls.py`) as `pending-vendors` under the `communities` namespace, placed explicitly before the greedy `<slug:slug>/` pattern to eliminate URL ordering fragility.
+- Test uses `reverse("communities:pending-vendors", ...)` instead of `reverse("vendors:community-pending", ...)`.
+
+**Test results:** 9 passed, 456 full-suite passed
+
 ## Verification Checklist
 
-After completing this section run:
-
-1. `uv run python manage.py check` — must produce zero errors
-2. `uv run python -c "from django.urls import reverse; print(reverse('vendors:register'))"` — must print `/api/v1/vendors/register/`
-3. `uv run python -c "from django.urls import reverse; print(reverse('vendors:community-pending', kwargs={'slug': 'koramangala'}))"` — must print `/api/v1/communities/koramangala/vendors/pending/`
-4. `uv run python -c "from django.urls import reverse; print(reverse('webhooks:razorpay'))"` — must print `/api/v1/webhooks/razorpay/`
-5. `uv run pytest apps/vendors/tests/test_urls.py` — all 9 URL resolution tests pass
+- [x] `apps/vendors/urls.py` — `app_name = "vendors"`, 7 patterns with full path prefixes
+- [x] `apps/core/urls_webhooks.py` — `app_name = "webhooks"`, `razorpay/` pattern
+- [x] `config/urls.py` — vendors at `api/v1/`, webhooks at `api/v1/webhooks/`
+- [x] `communities/urls.py` — `pending-vendors` before `<slug:slug>/`
+- [x] `test_urls.py` — all 9 URL resolution tests pass
+- [x] Full test suite — 456 passed, no regressions
