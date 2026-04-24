@@ -213,3 +213,24 @@ Implementation notes for `get_presigned_url`:
 - `get_presigned_url` returns a non-empty URL string for a valid key.
 - `get_presigned_url` uses the same `_s3_client` object on every call (no per-call instantiation).
 - All tests pass: `uv run pytest namma_neighbor/apps/catalogue/tests/test_storage_utils.py`
+
+---
+
+## Implementation Notes (Actual)
+
+**Files created:**
+- `namma_neighbor/apps/catalogue/storage.py` — `ProductMediaStorage` and `product_image_upload_path`
+- `namma_neighbor/apps/catalogue/utils.py` — `_s3_client`, `convert_to_webp`, `get_presigned_url`
+- `namma_neighbor/apps/catalogue/tests/conftest.py` — `moto_s3` fixture + `use_filesystem_storage_for_product_images` autouse fixture (patches `ProductImage._meta.get_field('image').storage` to FileSystemStorage in all catalogue tests)
+- `namma_neighbor/apps/catalogue/tests/test_storage_utils.py` — 6 tests
+- Updated `models.py` to import from `storage.py` and use `storage=ProductMediaStorage()`
+- Updated `migrations/0001_initial.py` to reference `apps.catalogue.storage`
+
+**Deviations from plan:**
+- P-mode color check uses `img.info.get('transparency') is not None` guard (plan said "palette with transparency" but implementation generalized it)
+- `conftest.py` has autouse `use_filesystem_storage_for_product_images` (not in plan) — needed for all catalogue model tests
+- `_s3_client` uses `getattr(settings, 'AWS_S3_REGION_NAME', 'ap-south-1')` as fallback (plan referenced settings attribute directly)
+- `@pytest.mark.django_db` removed from presigned URL test (no DB needed)
+- Decompression bomb test uses `mock.patch.object` instead of direct global mutation
+
+**Test count:** 26 total (20 model tests + 6 storage tests), all passing

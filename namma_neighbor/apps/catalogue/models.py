@@ -1,16 +1,11 @@
-import uuid
-
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db import transaction
 from django.utils import timezone
 
+from apps.catalogue.storage import ProductMediaStorage, product_image_upload_path
 from apps.core.models import TimestampedModel
 from apps.vendors.models import FSSAIStatus
-
-
-def product_image_upload_to(instance, _filename):
-    return f"media/products/{instance.product_id}/{uuid.uuid4()}.webp"
 
 
 class Category(TimestampedModel):
@@ -128,7 +123,7 @@ class ProductImage(TimestampedModel):
     product = models.ForeignKey(
         Product, on_delete=models.CASCADE, related_name="images"
     )
-    image = models.ImageField(upload_to=product_image_upload_to)
+    image = models.ImageField(storage=ProductMediaStorage(), upload_to=product_image_upload_path)
     thumbnail_s3_key = models.CharField(max_length=500, blank=True)
     thumbnail_s3_key_small = models.CharField(max_length=500, blank=True)
     is_primary = models.BooleanField(default=False)
