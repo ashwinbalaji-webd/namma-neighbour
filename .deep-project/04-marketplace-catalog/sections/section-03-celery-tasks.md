@@ -1,5 +1,3 @@
-Now I have all the context needed. Let me generate the section content.
-
 # section-03-celery-tasks
 
 ## Overview
@@ -20,9 +18,17 @@ This section also documents the required `CELERY_BEAT_SCHEDULE` entry.
 
 ---
 
-## File to Create
+## Files Created / Modified
 
-`/var/www/html/MadGirlfriend/namma-neighbour/namma_neighbor/apps/catalogue/tasks.py`
+- **Created:** `namma_neighbor/apps/catalogue/tasks.py`
+- **Created:** `namma_neighbor/apps/catalogue/tests/test_tasks.py`
+- **Modified:** `namma_neighbor/config/settings/base.py` — added `expire-flash-sales` to `CELERY_BEAT_SCHEDULE`
+
+## Implementation Notes
+
+- Used lazy `_get_s3_client()` with a module-level `_s3_client = None` sentinel (deferred boto3 initialization)
+- Beat schedule entry uses `options: {queue: 'default'}` for consistency with other entries (added in code review)
+- All tests patch `_get_s3_client` directly (not the module-level `_s3_client`) to ensure mock_aws context is respected
 
 ---
 

@@ -177,6 +177,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=6, minute=30),
         'options': {'queue': 'kyc'},
     },
+    'expire-flash-sales': {
+        'task': 'apps.catalogue.tasks.expire_flash_sales',
+        'schedule': 900.0,
+        'options': {'queue': 'default'},
+    },
 }
 
 LOGGING = {
