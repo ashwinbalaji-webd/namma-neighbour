@@ -20,6 +20,7 @@ dependencies = [
     "Pillow",
     "requests",
     "filetype>=1.2",
+    "django-filter",
 ]
 
 [dependency-groups]

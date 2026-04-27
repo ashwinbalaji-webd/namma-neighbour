@@ -227,11 +227,35 @@ Because of how this interacts with the rest of the codebase, the reverse accesso
 
 ## Integration Checklist
 
-- [ ] `ProductFilterSet` in `filters.py`, class `Meta` points to `Product` model
-- [ ] `category` filter uses `field_name='category__slug'` (not `category__id`)
-- [ ] `IsApprovedVendor`: guards against `AttributeError`/`RelatedObjectDoesNotExist` with a `getattr` + `None` check
-- [ ] `IsCommunityAdminOrProductVendorOwner`: admin path hits zero DB queries; vendor path hits one FK comparison
-- [ ] Both permission classes return `False` (not raise exceptions) when conditions are not met
-- [ ] Both files importable from `apps.catalogue.filters` and `apps.catalogue.permissions`
-- [ ] Tests cover all status variants for `IsApprovedVendor` (DRAFT, PENDING_REVIEW, SUSPENDED all denied)
-- [ ] Tests cover all three cases for `IsCommunityAdminOrProductVendorOwner` (admin, owner, neither)
+- [x] `ProductFilterSet` in `filters.py`, class `Meta` points to `Product` model
+- [x] `category` filter uses `field_name='category__slug'` (not `category__id`)
+- [x] `IsApprovedVendor`: guards against `AttributeError`/`RelatedObjectDoesNotExist` with a `getattr` + `None` check
+- [x] `IsCommunityAdminOrProductVendorOwner`: admin path hits zero DB queries; vendor path hits one FK comparison
+- [x] Both permission classes return `False` (not raise exceptions) when conditions are not met
+- [x] Both files importable from `apps.catalogue.filters` and `apps.catalogue.permissions`
+- [x] Tests cover all status variants for `IsApprovedVendor` (PENDING_REVIEW, REJECTED, SUSPENDED all denied)
+- [x] Tests cover all cases for `IsCommunityAdminOrProductVendorOwner` (admin, owner, wrong-community, neither)
+
+## Deviations from Plan
+
+### vendor_profile accessor
+The plan incorrectly stated the reverse accessor is `vendor_profile_profile`. The actual `Vendor` model defines `related_name='vendor_profile'`, so all code uses `request.user.vendor_profile`. Downstream sections (05–09) must use `vendor_profile`, NOT `vendor_profile_profile`.
+
+### VendorStatus vs VendorCommunityStatus
+The plan referred to `VendorStatus.APPROVED` and `VendorStatus.DRAFT`. The actual model has `VendorCommunityStatus` (on `VendorCommunity` junction table, not on `Vendor` directly). Values: PENDING_REVIEW, APPROVED, REJECTED, SUSPENDED — no DRAFT. `IsApprovedVendor` checks `VendorCommunity.status` for the JWT community_id.
+
+### IsApprovedVendor composes IsVendorOfCommunity
+Rather than re-implementing the vendor role check inline, `IsApprovedVendor` calls `IsVendorOfCommunity().has_permission()` from `apps.core.permissions` for DRY composition.
+
+### IsCommunityAdminOrProductVendorOwner additions
+- Added `has_permission()` guard returning False when `request.auth is None` (prevents unauthenticated requests from reaching `has_object_permission`).
+- Admin path casts `community_id` from JWT to `int` before comparison (JWT can encode integers as strings; Python `==` does not coerce).
+- Vendor owner path also checks `community_id == obj.community_id` to prevent cross-community token misuse.
+
+## Actual Files Created
+
+- `namma_neighbor/apps/catalogue/filters.py` — `ProductFilterSet`
+- `namma_neighbor/apps/catalogue/permissions.py` — `IsApprovedVendor`, `IsCommunityAdminOrProductVendorOwner`
+- `namma_neighbor/apps/catalogue/tests/test_filters_permissions.py` — 18 tests
+- `namma_neighbor/config/settings/base.py` — added `django_filters` to `THIRD_PARTY_APPS`
+- `pyproject.toml` — added `django-filter` dependency
